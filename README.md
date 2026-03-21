@@ -115,14 +115,14 @@ ssh root@YOUR_DROPLET_IP
 
 # Option A — clone first, then bootstrap
 cd /opt
-git clone https://github.com/YOUR_REPO/interns.git
+git clone https://github.com/0xstruct/interns.git
 cd interns
 cp .env.example .env
 nano .env          # fill in all required vars (see Environment Variables above)
 bash bootstrap.sh
 
 # Option B — bootstrap pulls the repo for you (set REPO_URL first)
-REPO_URL=https://github.com/YOUR_REPO/interns.git bash <(curl -fsSL https://raw.githubusercontent.com/YOUR_REPO/interns/main/bootstrap.sh)
+REPO_URL=https://github.com/0xstruct/interns.git bash <(curl -fsSL https://raw.githubusercontent.com/0xstruct/interns/main/bootstrap.sh)
 ```
 
 `bootstrap.sh` is **idempotent** — safe to re-run after updating `.env` or pulling new code.
