@@ -306,7 +306,21 @@ if (addResult.status !== 0) {
   process.exit(1);
 }
 
-// ── 7. Install bankr skill ────────────────────────────────────────────────────
+// ── 7. Register fan-facing slash commands with Telegram ───────────────────────
+const setCommandsResult = spawnSync("bun", [
+  "run",
+  join(ROOT, "the-interns-bot", "scripts", "set-commands.ts"),
+  "--token", c.bot_token,
+  "--type",  "fan",
+  "--name",  c.name ?? agentId,
+], { encoding: "utf8" });
+
+if (setCommandsResult.status !== 0) {
+  // Non-fatal — commands can be set manually; don't block provisioning
+  process.stderr.write(`warn: set-commands failed: ${setCommandsResult.stderr}\n`);
+}
+
+// ── 9. Install bankr skill ────────────────────────────────────────────────────
 const bankrInstall = spawnSync("openclaw", [
   "gateway", "call", "agent",
   "--json",
@@ -321,7 +335,7 @@ const bankrInstall = spawnSync("openclaw", [
 // Non-fatal if bankr install fails — can be retried via /settings in the management bot
 const bankrOk = bankrInstall.status === 0;
 
-// ── 8. Kick off async enrichment (fire and forget) ────────────────────────────
+// ── 10. Kick off async enrichment (fire and forget) ───────────────────────────
 Bun.spawn([
   "bun", "run",
   join(ROOT, "the-interns-bot", "scripts", "rescrape.ts"),

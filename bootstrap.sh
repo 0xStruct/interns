@@ -272,6 +272,14 @@ else
 
     ok "@the_interns_bot registered and bound"
   fi
+
+  # Register slash commands with Telegram (idempotent — safe to re-run)
+  log "Setting Telegram slash commands for @the_interns_bot..."
+  bun run "$INTERNS_DIR/the-interns-bot/scripts/set-commands.ts" \
+    --token "$THE_INTERNS_BOT_TOKEN" \
+    --type management \
+  && ok "Slash commands registered" \
+  || warn "set-commands.ts failed — run manually: bun run $INTERNS_DIR/the-interns-bot/scripts/set-commands.ts --token \$THE_INTERNS_BOT_TOKEN --type management"
 fi
 
 # ---------------------------------------------------------
