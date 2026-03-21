@@ -169,6 +169,21 @@ fi
 # 6d. Keep user systemd services alive after SSH logout
 loginctl enable-linger root 2>/dev/null || true
 
+# 6e. Ensure bun is in PATH for the OpenClaw systemd service.
+#     Without this, SKILL.md commands like `bun run ...` fail silently
+#     because systemd services don't inherit the user's shell PATH.
+SYSTEMD_DROP_IN="$HOME/.config/systemd/user/openclaw-gateway.service.d/env.conf"
+mkdir -p "$(dirname "$SYSTEMD_DROP_IN")"
+if ! grep -q 'BUN_INSTALL' "$SYSTEMD_DROP_IN" 2>/dev/null; then
+  cat >> "$SYSTEMD_DROP_IN" << 'ENVEOF'
+Environment=PATH=/root/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ENVEOF
+  systemctl --user daemon-reload 2>/dev/null || true
+  ok "Bun added to systemd service PATH"
+else
+  ok "Bun already in systemd service PATH"
+fi
+
 ok "OpenClaw configured"
 
 # ---------------------------------------------------------
