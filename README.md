@@ -43,7 +43,7 @@ brew install yt-dlp   # macOS
 # or: pip3 install yt-dlp
 
 # 3. Install OpenClaw
-# (Follow openclaw.ai installation instructions)
+npm install -g openclaw
 ```
 
 ### Setup
@@ -57,19 +57,26 @@ bun install
 
 # Copy and fill env
 cp .env.example .env
-# Edit .env — add THE_INTERNS_BOT_TOKEN, PLATFORM_WALLET, ANTHROPIC_API_KEY
+# Edit .env — add THE_INTERNS_BOT_TOKEN, PLATFORM_WALLET, BANKR_API_KEY
 
-# Register the management bot in OpenClaw
-openclaw agents create \
-  --id the-interns-bot \
+# Configure OpenClaw (one-time)
+openclaw config set gateway.mode local
+openclaw plugins enable telegram
+openclaw gateway start
+
+# Register the management bot in OpenClaw (two steps)
+source .env
+openclaw channels add \
   --channel telegram \
   --token "$THE_INTERNS_BOT_TOKEN" \
-  --skill ~/000/_COOL/interns/the-interns-bot/SKILL.md
+  --account the-interns-bot \
+  --name "The Interns Bot"
 
-openclaw reload
-
-# Start OpenClaw
-openclaw start
+openclaw agents add the-interns-bot \
+  --workspace "$(pwd)/the-interns-bot" \
+  --bind telegram:the-interns-bot \
+  --non-interactive \
+  --json
 ```
 
 ### Test a script manually
@@ -82,7 +89,6 @@ bun run the-interns-bot/scripts/validate-token.ts --token 123456:ABC...
 bun run the-interns-bot/scripts/load-state.ts --chat-id 123456789
 
 # Send a test Telegram message
-THE_INTERNS_BOT_TOKEN=xxx \
 bun run scripts/send-telegram.ts \
   --token "$THE_INTERNS_BOT_TOKEN" \
   --chat-id 123456789 \
@@ -91,114 +97,167 @@ bun run scripts/send-telegram.ts \
 
 ---
 
-## Deploying on DigitalOcean (1-Click Droplet)
+## Deploying on a VPS (DigitalOcean / any Ubuntu 24.04)
 
 ### 1. Create Droplet
 
-- Go to DigitalOcean → Create → Droplet
 - Choose **Ubuntu 24.04 LTS**
-- Size: **Basic — $6/mo (1 vCPU, 1 GB RAM)** is enough for ~50 bots; use $12/mo for 50–200
+- Size: **2 vCPU / 2 GB RAM** minimum (1 GB is too small for OpenClaw + Node.js)
 - Enable **backups** (recommended)
 - Add your SSH key
 
-### 2. Initial Server Setup
+### 2. One-command Bootstrap
+
+The `bootstrap.sh` script handles everything: system packages, Node.js, Bun, yt-dlp, OpenClaw install + config, git clone, `bun install`, and management bot registration.
 
 ```bash
 ssh root@YOUR_DROPLET_IP
 
-# Update system
-apt update && apt upgrade -y
-
-# Install Bun
-curl -fsSL https://bun.sh/install | bash
-source ~/.bashrc
-
-# Install yt-dlp
-pip3 install yt-dlp || apt install yt-dlp -y
-
-# Install OpenClaw
-# (follow openclaw.ai/docs/install for Linux)
-```
-
-### 3. Deploy the Project
-
-```bash
-# On your server
+# Option A — clone first, then bootstrap
 cd /opt
 git clone https://github.com/YOUR_REPO/interns.git
 cd interns
+cp .env.example .env
+nano .env          # fill in all required vars (see Environment Variables above)
+bash bootstrap.sh
 
-# Install deps
+# Option B — bootstrap pulls the repo for you (set REPO_URL first)
+REPO_URL=https://github.com/YOUR_REPO/interns.git bash <(curl -fsSL https://raw.githubusercontent.com/YOUR_REPO/interns/main/bootstrap.sh)
+```
+
+`bootstrap.sh` is **idempotent** — safe to re-run after updating `.env` or pulling new code.
+
+### 3. What bootstrap.sh does (step by step)
+
+| Step | What |
+|---|---|
+| 1 | `apt upgrade`, installs git / curl / python3 / jq |
+| 2 | Installs Node.js 22 via NodeSource |
+| 3 | Installs Bun |
+| 4 | Installs yt-dlp via pip3 |
+| 5 | Installs OpenClaw via `npm install -g openclaw` |
+| 6 | Runs `openclaw config set gateway.mode local`, enables telegram plugin, runs `openclaw doctor --repair` |
+| 7 | Starts OpenClaw gateway via systemd |
+| 8 | Clones / pulls the repo |
+| 9 | Runs `bun install` |
+| 10 | Creates `.env` from `.env.example` if missing |
+| 11 | Registers `@the_interns_bot` in OpenClaw (skipped if `THE_INTERNS_BOT_TOKEN` not set) |
+
+### 4. Pulling updated code
+
+```bash
+cd /opt/interns
+git pull --ff-only
+bun install           # only needed if package.json changed
+bash bootstrap.sh     # re-registers bot / re-applies config if needed
+```
+
+Or just:
+
+```bash
+cd /opt/interns && git pull && bun install
+```
+
+SKILL.md changes are **live immediately** — OpenClaw reads the file fresh on each conversation, no restart needed.
+
+### 5. OpenClaw service management
+
+OpenClaw manages its own systemd user service. Use these commands — **not** `systemctl restart openclaw`:
+
+```bash
+# Status
+openclaw gateway status
+
+# Restart
+openclaw gateway restart
+
+# Logs
+journalctl --user -u openclaw-gateway.service -f
+journalctl --user -u openclaw-gateway.service -n 100 --no-pager
+
+# List registered channels and agents
+openclaw channels list
+openclaw agents list
+```
+
+### 6. Verify
+
+```bash
+# Should show: Runtime: running, RPC probe: ok
+openclaw gateway status
+
+# Should list: the-interns-bot
+openclaw channels list
+openclaw agents list
+
+# Then DM @the_interns_bot on Telegram — should reply
+```
+
+### 7. Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| `Unknown channel: telegram` | Plugin not enabled. Run: `openclaw plugins enable telegram && openclaw gateway restart` |
+| Gateway won't start | Run: `openclaw config set gateway.mode local && openclaw gateway restart` |
+| Gateway token mismatch | Old process on port 18789. Run: `openclaw gateway stop && openclaw gateway start` |
+| Commands hang | Gateway may be stuck. Run: `openclaw gateway status` — if port in use by stale pid, kill it first |
+| `openclaw agents create` error | Wrong command. Use `openclaw agents add` (see Step 11 above) |
+| `systemctl restart openclaw` hangs | OpenClaw runs as a **user** service, not system. Use `openclaw gateway restart` instead |
+
+---
+
+## Updating the Server
+
+### Pull latest code and restart
+
+```bash
+cd /opt/interns
+
+# 1. Pull latest code
+git pull --ff-only
+
+# 2. Install any new dependencies
 bun install
 
-# Create .env
-cp .env.example .env
-nano .env
-# Fill in: THE_INTERNS_BOT_TOKEN, PLATFORM_WALLET, INTERNS_DIR=/opt/interns, ANTHROPIC_API_KEY
+# 3. Restart OpenClaw gateway (picks up any SKILL.md / config changes)
+openclaw gateway restart
+
+# 4. Verify it's healthy
+openclaw gateway status
 ```
 
-### 4. Set INTERNS_DIR
+### What requires a gateway restart vs. what doesn't
 
-This is critical. All generated SKILL.md files use absolute paths.
+| Change | Restart needed? |
+|---|---|
+| `SKILL.md` edited | ❌ No — read fresh on every conversation |
+| `PERSONA.md` / `PRICING.md` / `DATA.md` edited | ❌ No — same, read fresh |
+| New influencer provisioned | ❌ No — `provision-agent.ts` registers the agent live |
+| `.env` vars changed | ✅ Yes — `openclaw gateway restart` |
+| OpenClaw updated (`npm install -g openclaw`) | ✅ Yes — `openclaw gateway restart` |
+| New package added to `package.json` | ❌ No — only `bun install` needed |
+
+### Full update + restart (safe one-liner)
 
 ```bash
-# In .env
-INTERNS_DIR=/opt/interns
+cd /opt/interns && git pull --ff-only && bun install && openclaw gateway restart && openclaw gateway status
 ```
 
-### 5. Register and Start OpenClaw
+### If the gateway is stuck or unhealthy after update
 
 ```bash
-# Source env vars
-export $(grep -v '^#' .env | xargs)
+# Stop cleanly
+openclaw gateway stop
+sleep 2
 
-# Register the management bot
-openclaw agents create \
-  --id the-interns-bot \
-  --channel telegram \
-  --token "$THE_INTERNS_BOT_TOKEN" \
-  --skill /opt/interns/the-interns-bot/SKILL.md
+# Start fresh
+openclaw gateway start
+sleep 3
 
-openclaw reload
-```
-
-### 6. Run OpenClaw as a Systemd Service
-
-```bash
-# Create service file
-cat > /etc/systemd/system/openclaw.service << 'EOF'
-[Unit]
-Description=OpenClaw Agent Service
-After=network.target
-
-[Service]
-Type=simple
-User=root
-WorkingDirectory=/opt/interns
-EnvironmentFile=/opt/interns/.env
-ExecStart=/root/.bun/bin/openclaw start
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-systemctl daemon-reload
-systemctl enable openclaw
-systemctl start openclaw
-
-# Check status
-systemctl status openclaw
-journalctl -u openclaw -f
-```
-
-### 7. Verify
-
-```bash
-# DM @the_interns_bot on Telegram — should receive a greeting
-# Check OpenClaw logs
-journalctl -u openclaw -n 50
+# Confirm running
+openclaw gateway status
+openclaw channels list
+openclaw agents list
 ```
 
 ---
@@ -209,9 +268,10 @@ Influencers onboard themselves by DMing `@the_interns_bot`. No manual steps need
 
 After they complete the 18-step flow, `provision-agent.ts` runs automatically and:
 1. Creates skill files in `/opt/interns/influencers/{agentId}/`
-2. Registers the agent in OpenClaw
-3. Runs `openclaw reload`
-4. Starts background voice enrichment
+2. Registers the agent in OpenClaw (`openclaw channels add` + `openclaw agents add`)
+3. Starts background voice enrichment
+
+No restart required — OpenClaw picks up new agents immediately.
 
 ---
 
