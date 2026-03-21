@@ -96,6 +96,15 @@ fi
 #      Anthropic provider (api.anthropic.com). bankr uses a different base URL and
 #      a bk_... key, so it must be declared as a separate provider in openclaw.json.
 #   e) loginctl enable-linger  — keeps user systemd services alive after SSH logout
+# Load .env early so BANKR_API_KEY and other vars are available for OpenClaw config.
+# (Full .env setup/creation happens in step 10; this just pre-loads if the file exists.)
+if [[ -f "$INTERNS_DIR/.env" ]]; then
+  set -o allexport
+  # shellcheck source=/dev/null
+  source "$INTERNS_DIR/.env"
+  set +o allexport
+fi
+
 # ---------------------------------------------------------
 log "Configuring OpenClaw..."
 
