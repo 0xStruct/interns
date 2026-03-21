@@ -1,0 +1,28 @@
+{
+  "name": "interns",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "validate-token": "bun run the-interns-bot/scripts/validate-token.ts",
+    "save-state": "bun run the-interns-bot/scripts/save-state.ts",
+    "load-state": "bun run the-interns-bot/scripts/load-state.ts",
+    "provision-agent": "bun run the-interns-bot/scripts/provision-agent.ts",
+    "get-status": "bun run the-interns-bot/scripts/get-status.ts",
+    "update-setting": "bun run the-interns-bot/scripts/update-setting.ts",
+    "pause-agent": "bun run the-interns-bot/scripts/pause-agent.ts",
+    "resume-agent": "bun run the-interns-bot/scripts/resume-agent.ts",
+    "rescrape": "bun run the-interns-bot/scripts/rescrape.ts",
+    "relay-dm": "bun run scripts/relay-dm.ts",
+    "reply-dm": "bun run scripts/reply-dm.ts",
+    "relay-shoutout": "bun run scripts/relay-shoutout.ts",
+    "send-telegram": "bun run scripts/send-telegram.ts",
+    "scrape-x": "bun run scripts/scrape-x.ts",
+    "scrape-youtube": "bun run scripts/scrape-youtube.ts",
+    "scrape-newsletter": "bun run scripts/scrape-newsletter.ts",
+    "enrich-persona": "bun run scripts/enrich-persona.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0"
+  }
+}
