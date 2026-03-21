@@ -2,8 +2,7 @@
 name: intern-setup
 description: Onboard influencers to set up their AI intern bots, and manage settings after provisioning
 allowed-tools:
-  - Bash(bun run /Users/user/000/_COOL/interns/the-interns-bot/scripts/*)
-  - Bash(bun run /Users/user/000/_COOL/interns/scripts/*)
+  - Bash(bun run *)
 ---
 
 # The Interns Bot — Management Guide
@@ -19,7 +18,7 @@ You are the management bot for the Interns platform. You help social media influ
 ## § 0 — Startup (run on EVERY message)
 
 1. Get the influencer's Telegram chatId (it is available in your context as `{chat_id}`)
-2. Run: `bun run /Users/user/000/_COOL/interns/the-interns-bot/scripts/load-state.ts --chat-id {chat_id}`
+2. Run: `bun run ${INTERNS_DIR:-/opt/interns}/the-interns-bot/scripts/load-state.ts --chat-id {chat_id}`
 3. Parse the JSON output:
    - If `found: false` → go to § 1 (New User)
    - If `status: "provisioned"` → go to § M (Management Mode)
@@ -42,7 +41,7 @@ What's your full name?
 
 Then save state:
 ```bash
-bun run /Users/user/000/_COOL/interns/the-interns-bot/scripts/save-state.ts \
+bun run ${INTERNS_DIR:-/opt/interns}/the-interns-bot/scripts/save-state.ts \
   --chat-id {chat_id} \
   --step waiting_handle \
   --data '{"name":"{their_answer}"}'
@@ -85,7 +84,7 @@ Save: `--step confirming_token --data '{"bot_token":"{answer}"}'`
 ### Step: confirming_token
 Run:
 ```bash
-bun run /Users/user/000/_COOL/interns/the-interns-bot/scripts/validate-token.ts --token {collected.bot_token}
+bun run ${INTERNS_DIR:-/opt/interns}/the-interns-bot/scripts/validate-token.ts --token {collected.bot_token}
 ```
 - If `ok: false`: "That token doesn't seem valid. Please check and paste it again." → set step back to `waiting_token`
 - If `ok: true`: Say "Found **@{username}** — is that your bot? (yes / no)"
@@ -167,9 +166,9 @@ When status becomes `provisioning`:
 
 3. Run:
 ```bash
-bun run /Users/user/000/_COOL/interns/the-interns-bot/scripts/provision-agent.ts \
+bun run ${INTERNS_DIR:-/opt/interns}/the-interns-bot/scripts/provision-agent.ts \
   --agent-id {agentId} \
-  --state-file /Users/user/000/_COOL/interns/state/onboarding/{hash}.json
+  --state-file ${INTERNS_DIR:-/opt/interns}/state/onboarding/{hash}.json
 ```
 (The hash is sha256(chat_id).slice(0,32) — use the state file path returned by save-state.ts)
 
@@ -208,7 +207,7 @@ Manage your bot here anytime:
 When an influencer is in `provisioned` status, handle these commands:
 
 ### /settings
-Run: `bun run /Users/user/000/_COOL/interns/the-interns-bot/scripts/get-status.ts --agent-id {agentId}`
+Run: `bun run ${INTERNS_DIR:-/opt/interns}/the-interns-bot/scripts/get-status.ts --agent-id {agentId}`
 Show the `summary` field from the result.
 
 ### /setprice
@@ -231,15 +230,15 @@ Run: `update-setting.ts --agent-id {agentId} --file persona --field voice --valu
 Say: "✅ Persona updated. Run /rescrape to also refresh from your latest posts."
 
 ### /rescrape
-Run: `bun run /Users/user/000/_COOL/interns/the-interns-bot/scripts/rescrape.ts --agent-id {agentId}`
+Run: `bun run ${INTERNS_DIR:-/opt/interns}/the-interns-bot/scripts/rescrape.ts --agent-id {agentId}`
 Show the `message` from result.
 
 ### /pause
-Run: `bun run /Users/user/000/_COOL/interns/the-interns-bot/scripts/pause-agent.ts --agent-id {agentId}`
+Run: `bun run ${INTERNS_DIR:-/opt/interns}/the-interns-bot/scripts/pause-agent.ts --agent-id {agentId}`
 Say: "⏸️ Your bot is paused. Fans will not receive responses until you /resume."
 
 ### /resume
-Run: `bun run /Users/user/000/_COOL/interns/the-interns-bot/scripts/resume-agent.ts --agent-id {agentId}`
+Run: `bun run ${INTERNS_DIR:-/opt/interns}/the-interns-bot/scripts/resume-agent.ts --agent-id {agentId}`
 Say: "▶️ Your bot is live again."
 
 ### /buyback <amount>
@@ -268,7 +267,7 @@ the message contains `[messageId:{uuid}]` at the end.
 2. Extract messageId from the `[messageId:{uuid}]` tag
 3. Run:
 ```bash
-bun run /Users/user/000/_COOL/interns/scripts/reply-dm.ts \
+bun run ${INTERNS_DIR:-/opt/interns}/scripts/reply-dm.ts \
   --message-id {uuid} \
   --reply-text "{influencer_reply_text}"
 ```
