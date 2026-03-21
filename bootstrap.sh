@@ -91,7 +91,11 @@ fi
 #   a) doctor --repair  — creates ~/.openclaw, sessions dir, installs systemd service
 #   b) config set gateway.mode local  — required or gateway refuses to start
 #   c) fix telegram plugin in JSON  — the CLI `enable` command writes the wrong key
-#   d) loginctl enable-linger  — keeps user systemd services alive after SSH logout
+#   d) configure bankr LLM gateway as a named provider + set agent default model
+#      IMPORTANT: setting ANTHROPIC_API_KEY env var only configures the built-in
+#      Anthropic provider (api.anthropic.com). bankr uses a different base URL and
+#      a bk_... key, so it must be declared as a separate provider in openclaw.json.
+#   e) loginctl enable-linger  — keeps user systemd services alive after SSH logout
 # ---------------------------------------------------------
 log "Configuring OpenClaw..."
 
@@ -108,25 +112,54 @@ openclaw config set gateway.mode local
 #     Directly editing the JSON is the reliable fix.
 if [[ -f "$OPENCLAW_CONFIG" ]]; then
   python3 - <<PYEOF
-import json
+import json, os
 
 with open("$OPENCLAW_CONFIG") as f:
     cfg = json.load(f)
 
+# ── Telegram plugin ──────────────────────────────────────────────────────────
 entries = cfg.setdefault("plugins", {}).setdefault("entries", {})
-
-# Remove stale @openclaw/telegram entry if present (causes "plugin not found" warnings)
 if "@openclaw/telegram" in entries:
     del entries["@openclaw/telegram"]
     print("  Removed stale @openclaw/telegram entry")
-
-# Enable by plugin ID
 entries["telegram"] = {"enabled": True}
+print("  telegram plugin: enabled")
+
+# ── bankr LLM gateway provider ───────────────────────────────────────────────
+# ANTHROPIC_API_KEY env var only reaches the built-in Anthropic provider.
+# bankr needs its own named provider block pointing at llm.bankr.bot, with the
+# bk_... key inline. The agent default must reference "bankr/claude-sonnet-4-5"
+# so requests are routed through the bankr gateway instead of api.anthropic.com.
+bankr_key = os.environ.get("BANKR_API_KEY", "")
+if bankr_key:
+    models_cfg = cfg.setdefault("models", {})
+    models_cfg["mode"] = "merge"
+    providers = models_cfg.setdefault("providers", {})
+    providers["bankr"] = {
+        "baseUrl": "https://llm.bankr.bot",
+        "apiKey": bankr_key,
+        "api": "anthropic-messages",
+        "models": [
+            {
+                "id": "claude-sonnet-4-5",
+                "name": "Claude Sonnet 4.5",
+                "contextWindow": 200000,
+                "maxTokens": 16000,
+                "api": "anthropic-messages",
+                "cost": {"input": 3.0, "output": 15.0}
+            }
+        ]
+    }
+    # Set as default model for all agents
+    agents_cfg = cfg.setdefault("agents", {})
+    agents_cfg.setdefault("defaults", {}).setdefault("model", {})["primary"] = "bankr/claude-sonnet-4-5"
+    print("  bankr LLM provider: configured (model: bankr/claude-sonnet-4-5)")
+else:
+    print("  WARN: BANKR_API_KEY not set — bankr LLM provider not configured")
+    print("        Set BANKR_API_KEY in .env and re-run bootstrap.sh")
 
 with open("$OPENCLAW_CONFIG", "w") as f:
     json.dump(cfg, f, indent=2)
-
-print("  telegram plugin: enabled")
 PYEOF
 else
   warn "$OPENCLAW_CONFIG not found after doctor --repair — something went wrong"
