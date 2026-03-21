@@ -268,19 +268,40 @@ When a fan says they've paid:
 
 writeFileSync(join(agentDir, "SKILL.md"), skillContent);
 
-// ── 6. Register agent in OpenClaw ─────────────────────────────────────────────
-const createResult = spawnSync("openclaw", [
-  "agents", "create",
-  "--id",      agentId,
+// ── 6a. Register Telegram channel account (accountId = agentId for easy lookup) ──
+// openclaw channels add --channel telegram --token <TOKEN> --account <agentId>
+// Using agentId as accountId lets us reliably reference it in bind/unbind later.
+const channelResult = spawnSync("openclaw", [
+  "channels", "add",
   "--channel", "telegram",
   "--token",   c.bot_token,
-  "--skill",   join(agentDir, "SKILL.md"),
+  "--account", agentId,
+  "--name",    c.name ?? agentId,
 ], { encoding: "utf8" });
 
-if (createResult.status !== 0) {
+if (channelResult.status !== 0) {
   console.log(JSON.stringify({
     ok: false,
-    error: `openclaw agents create failed: ${createResult.stderr}`,
+    error: `openclaw channels add failed: ${channelResult.stderr}`,
+  }));
+  process.exit(1);
+}
+
+// ── 6b. Add agent with workspace dir and bind to the Telegram channel ────────
+// --workspace points OpenClaw at the dir containing SKILL.md
+// --bind telegram:<accountId> routes Telegram messages to this agent
+const addResult = spawnSync("openclaw", [
+  "agents", "add", agentId,
+  "--workspace",      agentDir,
+  "--bind",           `telegram:${agentId}`,
+  "--non-interactive",
+  "--json",
+], { encoding: "utf8" });
+
+if (addResult.status !== 0) {
+  console.log(JSON.stringify({
+    ok: false,
+    error: `openclaw agents add failed: ${addResult.stderr}`,
   }));
   process.exit(1);
 }
@@ -297,21 +318,10 @@ const bankrInstall = spawnSync("openclaw", [
   }),
 ], { encoding: "utf8" });
 
-// Non-fatal if bankr install fails — can be retried
+// Non-fatal if bankr install fails — can be retried via /settings in the management bot
 const bankrOk = bankrInstall.status === 0;
 
-// ── 8. Reload OpenClaw ────────────────────────────────────────────────────────
-const reloadResult = spawnSync("openclaw", ["reload"], { encoding: "utf8" });
-
-if (reloadResult.status !== 0) {
-  console.log(JSON.stringify({
-    ok: false,
-    error: `openclaw reload failed: ${reloadResult.stderr}`,
-  }));
-  process.exit(1);
-}
-
-// ── 9. Kick off async enrichment (fire and forget) ────────────────────────────
+// ── 8. Kick off async enrichment (fire and forget) ────────────────────────────
 Bun.spawn([
   "bun", "run",
   join(ROOT, "the-interns-bot", "scripts", "rescrape.ts"),

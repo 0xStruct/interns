@@ -1,7 +1,12 @@
 #!/usr/bin/env bun
 /**
  * pause-agent.ts
- * Disables an influencer's intern bot (openclaw agents disable + reload).
+ * Pauses an influencer's intern bot by unbinding its Telegram channel.
+ * Uses: openclaw agents unbind --agent <id> --bind telegram:<accountId>
+ *
+ * The accountId is the same as agentId (set at provision time via --account flag).
+ * Unbinding removes the routing so Telegram messages no longer reach the agent.
+ * The agent workspace and data files are untouched — resume restores it instantly.
  *
  * Usage:
  *   bun run the-interns-bot/scripts/pause-agent.ts --agent-id johndoe-intern
@@ -24,15 +29,15 @@ if (!agentId) {
   process.exit(1);
 }
 
-const disable = spawnSync("openclaw", ["agents", "disable", "--id", agentId], { encoding: "utf8" });
-if (disable.status !== 0) {
-  console.log(JSON.stringify({ ok: false, error: `openclaw agents disable failed: ${disable.stderr}` }));
-  process.exit(1);
-}
+// accountId was set to agentId at provision time (channels add --account <agentId>)
+const unbind = spawnSync("openclaw", [
+  "agents", "unbind",
+  "--agent", agentId,
+  "--bind",  `telegram:${agentId}`,
+], { encoding: "utf8" });
 
-const reload = spawnSync("openclaw", ["reload"], { encoding: "utf8" });
-if (reload.status !== 0) {
-  console.log(JSON.stringify({ ok: false, error: `openclaw reload failed: ${reload.stderr}` }));
+if (unbind.status !== 0) {
+  console.log(JSON.stringify({ ok: false, error: `openclaw agents unbind failed: ${unbind.stderr}` }));
   process.exit(1);
 }
 

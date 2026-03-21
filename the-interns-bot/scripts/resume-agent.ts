@@ -1,7 +1,11 @@
 #!/usr/bin/env bun
 /**
  * resume-agent.ts
- * Re-enables a paused influencer intern bot.
+ * Resumes a paused influencer intern bot by re-binding its Telegram channel.
+ * Uses: openclaw agents bind --agent <id> --bind telegram:<accountId>
+ *
+ * The accountId is the same as agentId (set at provision time via --account flag).
+ * Re-binding restores the routing so Telegram messages reach the agent again.
  *
  * Usage:
  *   bun run the-interns-bot/scripts/resume-agent.ts --agent-id johndoe-intern
@@ -24,15 +28,16 @@ if (!agentId) {
   process.exit(1);
 }
 
-const enable = spawnSync("openclaw", ["agents", "enable", "--id", agentId], { encoding: "utf8" });
-if (enable.status !== 0) {
-  console.log(JSON.stringify({ ok: false, error: `openclaw agents enable failed: ${enable.stderr}` }));
-  process.exit(1);
-}
+// accountId was set to agentId at provision time (channels add --account <agentId>)
+const bind = spawnSync("openclaw", [
+  "agents", "bind",
+  "--agent", agentId,
+  "--bind",  `telegram:${agentId}`,
+  "--json",
+], { encoding: "utf8" });
 
-const reload = spawnSync("openclaw", ["reload"], { encoding: "utf8" });
-if (reload.status !== 0) {
-  console.log(JSON.stringify({ ok: false, error: `openclaw reload failed: ${reload.stderr}` }));
+if (bind.status !== 0) {
+  console.log(JSON.stringify({ ok: false, error: `openclaw agents bind failed: ${bind.stderr}` }));
   process.exit(1);
 }
 
