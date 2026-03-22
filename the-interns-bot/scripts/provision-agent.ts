@@ -207,8 +207,10 @@ Steps:
 5. **Content check**: Screen the message for vulgarity, harassment, threats, hate speech, or inappropriate content.
    - If inappropriate: "Sorry, I can't deliver this message. Please keep it respectful and try again."
    - Do NOT proceed to payment or relay if the content is inappropriate.
-6. If message is clean, provide bankr wallet address from DATA.md for payment
-7. Ask fan to reply with their txhash once they've paid
+6. If message is clean, offer two payment options:
+   Option A (crypto wallet): Direct them to the x402 paywall: ${process.env.X402_BASE_URL ?? "http://localhost:4402"}/pay/${handleNoAt}/dm
+   Option B (bankr): Provide the bankr wallet address from DATA.md and ask them to pay via bankr.bot
+7. Ask fan to reply with their txhash or confirm payment once done
 8. On payment confirmation:
    a. Run: bun run ${ROOT}/scripts/relay-dm.ts \\
         --agent-id ${agentId} \\
@@ -229,7 +231,9 @@ Trigger: fan wants a shoutout on X from ${displayName}.
 Steps:
 1. Read shoutout price from PRICING.md; if enabled is false, say unavailable
 2. Quote price
-3. Provide bankr wallet for payment
+3. Offer two payment options:
+   Option A (crypto wallet): ${process.env.X402_BASE_URL ?? "http://localhost:4402"}/pay/${handleNoAt}/shoutout
+   Option B (bankr): Provide bankr wallet address from DATA.md
 4. After payment confirmation, collect:
    - Shoutout message (max 280 chars)
    - Up to 3 X handles to tag (e.g. x.com/alice x.com/bob x.com/carol)
@@ -258,9 +262,12 @@ Trigger: fan wants to book a call or meeting with ${displayName}.
 Steps:
 1. Read meeting price and duration from PRICING.md
 2. Quote price + duration
-3. Provide bankr wallet address from DATA.md for payment
-4. Ask fan to reply with their txhash once they've paid
-5. On payment confirmation:
+3. Offer two payment options:
+   Option A (crypto wallet): ${process.env.X402_BASE_URL ?? "http://localhost:4402"}/pay/${handleNoAt}/meeting
+      (The booking link is auto-generated and returned after payment — no further steps needed)
+   Option B (bankr): Provide bankr wallet address from DATA.md, then follow steps 4-5 below
+4. Ask fan to reply with their txhash once they've paid (Option B only)
+5. On Option B payment confirmation:
    a. Generate a unique booking ref: \`pay_\` + 8 random hex chars (e.g. \`pay_a1b2c3d4\`)
    b. Build one-time booking URL: append \`?metadata[ref]=PAY_REF&metadata[fan]={fan_username}\` to the booking_link from DATA.md
       Example: \`https://cal.com/johndoe/30min?metadata[ref]=pay_a1b2c3d4&metadata[fan]=@alice\`
@@ -303,12 +310,26 @@ Trigger: fan asks about specific topics, asks for recommendations, or says "what
 
 ## Payment Confirmation Flow
 
-When a fan says they've paid:
+When a fan says they've paid (Option B / bankr):
 1. Ask for their transaction hash (txhash)
 2. Note: "Payment confirmation is on Base blockchain - if you have a txhash, share it and I'll log it."
 3. Accept their word + txhash as confirmation (do not attempt on-chain verification in-bot)
 4. After logging, forward 90% of amount to influencer wallet and 10% to platform wallet
    via bankr skill: "send {90%_amount} USDC to {bankr_wallet}" and "send {10%_amount} USDC to {platform_wallet}"
+
+When a fan pays via the x402 paywall link (Option A):
+- Payment is verified and the service is delivered automatically by the x402 server
+- The fan will see a success screen in their browser with a confirmation
+- For meetings: the booking link is returned directly on the paywall success screen
+- No further action needed in Telegram — just confirm if the fan reports they've paid
+
+## x402 API (for AI agents and developers)
+
+If a fan or developer asks about programmatic access or the API:
+- Discovery: ${process.env.X402_BASE_URL ?? "http://localhost:4402"}/
+- My services: ${process.env.X402_BASE_URL ?? "http://localhost:4402"}/agents/${handleNoAt}
+- Payment protocol: x402 (USDC on Base)
+- Agents can POST to the service endpoints with an X-PAYMENT header to pay and receive services automatically
 
 ---
 

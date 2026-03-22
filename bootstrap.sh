@@ -352,6 +352,44 @@ else
 fi
 
 # ---------------------------------------------------------
+# 11b. x402 payment server (systemd user service)
+# ---------------------------------------------------------
+log "Setting up x402 payment server..."
+
+X402_SERVICE="$HOME/.config/systemd/user/interns-x402.service"
+_X402_PORT="${X402_PORT:-4402}"
+_X402_BASE_URL="${X402_BASE_URL:-http://localhost:${_X402_PORT}}"
+
+mkdir -p "$(dirname "$X402_SERVICE")"
+cat > "$X402_SERVICE" << SVCEOF
+[Unit]
+Description=interns.bot x402 Payment Server
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=${INTERNS_DIR}
+EnvironmentFile=${INTERNS_DIR}/.env
+Environment=PATH=${HOME}/.bun/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=${HOME}/.bun/bin/bun run ${INTERNS_DIR}/x402-server.ts
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+SVCEOF
+
+systemctl --user daemon-reload
+systemctl --user enable interns-x402.service 2>/dev/null || true
+systemctl --user restart interns-x402.service 2>/dev/null || true
+sleep 2
+if systemctl --user is-active interns-x402.service &>/dev/null; then
+  ok "x402 server running on port ${_X402_PORT} — discovery: ${_X402_BASE_URL}/"
+else
+  warn "x402 server failed to start — check: journalctl --user -u interns-x402.service -n 20"
+fi
+
+# ---------------------------------------------------------
 # 12. Clear stale sessions + restart gateway
 #     After code updates, old conversation sessions may have
 #     cached bot behavior that conflicts with new SOUL.md.
@@ -391,7 +429,9 @@ echo ""
 echo "  Next steps:"
 echo "    1. DM @the_interns_bot on Telegram — it should reply with the onboarding flow"
 echo "    2. Update code:  cd $INTERNS_DIR && git pull && bun install && bash bootstrap.sh"
-echo "    3. View logs:    journalctl --user -u openclaw-gateway.service -f"
+echo "    3. Gateway logs: journalctl --user -u openclaw-gateway.service -f"
+echo "    4. x402 logs:    journalctl --user -u interns-x402.service -f"
+echo "    5. x402 API:     curl \${X402_BASE_URL:-http://localhost:4402}/"
 echo ""
 echo "  Troubleshooting:"
 echo "    openclaw gateway status"
