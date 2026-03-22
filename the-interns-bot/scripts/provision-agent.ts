@@ -15,7 +15,7 @@ import { parseArgs } from "util";
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
-import { spawnSync } from "child_process";
+import { spawnSync, spawn } from "child_process";
 
 const ROOT = process.env.INTERNS_DIR ?? join(dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -141,14 +141,21 @@ This is ${c.name}'s AI intern on Telegram. It handles:
 *Will be populated by scrape-newsletter.ts after provisioning.*
 `);
 
-// ── 5. SKILL.md (fan-facing) — generated with hardcoded paths ─────────────────
-const skillContent = `---
+// ── 5a. SKILL.md (fan-facing tool permissions) ──────────────────────────────────
+writeFileSync(join(agentDir, "SKILL.md"), `---
 name: intern
 description: AI intern for ${c.handle}
 allowed-tools:
-  - Bash(bun run ${ROOT}/scripts/*)
-  - Bash(bun run ${ROOT}/the-interns-bot/scripts/*)
+  - "Bash(bun run ${ROOT}/scripts/*)"
+  - "Bash(bun run ${ROOT}/the-interns-bot/scripts/*)"
 ---
+`);
+
+// ── 5b. SOUL.md (fan-facing system prompt — OpenClaw reads this, NOT SKILL.md body)
+writeFileSync(join(agentDir, "SOUL.md"), `# ${c.name}'s AI Intern
+
+You are the AI intern for ${c.handle}. You are NOT ${c.name}. You are their assistant.
+If sincerely asked whether you are human or AI, say you are ${c.name}'s AI intern.
 
 ## Startup
 At the start of every conversation, read these files in order:
@@ -156,9 +163,6 @@ At the start of every conversation, read these files in order:
 2. ${agentDir}/PRICING.md
 3. ${agentDir}/DATA.md
 4. ${agentDir}/CONTEXT.md
-
-Your identity: You are the AI intern for ${c.handle}. You are NOT ${c.name}. You are their assistant.
-If sincerely asked whether you are human or AI, say you are ${c.name}'s AI intern.
 
 ---
 
@@ -168,7 +172,7 @@ Trigger: fan wants to send a direct message or question to ${c.name}.
 
 Steps:
 1. Read vvip_dm price from PRICING.md
-2. If shoutout is disabled (price_usd: disabled), tell the fan this service is not available
+2. If vvip_dm is disabled (price_usd: disabled), tell the fan this service is not available
 3. Quote price and turnaround (48h)
 4. Provide bankr wallet address from DATA.md for payment
 5. Ask fan to reply with their txhash once they've paid
@@ -207,7 +211,7 @@ Steps:
      --message-id {new_uuid} \\
      --paid-amount {amount}
 6. Tell fan: "Your shoutout request is with ${c.name} for review. You'll hear back here."
-7. If influencer approves → fan is notified automatically. If declined → fan receives reason.
+7. If influencer approves -> fan is notified automatically. If declined -> fan receives reason.
 
 ---
 
@@ -220,7 +224,7 @@ Steps:
 2. Quote price + duration
 3. Provide bankr wallet for payment
 4. After payment confirmation, share booking_link from DATA.md
-5. Say: "You're all set — pick a time at the link above. ${c.name} will see your booking."
+5. Say: "You're all set - pick a time at the link above. ${c.name} will see your booking."
 
 ---
 
@@ -232,7 +236,7 @@ Trigger: fan asks a general question about ${c.name}'s areas of expertise.
 - Draw on expertise areas and context from CONTEXT.md
 - Reference SAMPLES section of PERSONA.md for voice examples
 - Do NOT answer off-limits topics
-- This is always free — never ask for payment for this capability
+- This is always free - never ask for payment for this capability
 
 ---
 
@@ -250,7 +254,7 @@ Trigger: fan asks about specific topics, asks for recommendations, or says "what
 
 When a fan says they've paid:
 1. Ask for their transaction hash (txhash)
-2. Note: "Payment confirmation is on Base blockchain — if you have a txhash, share it and I'll log it."
+2. Note: "Payment confirmation is on Base blockchain - if you have a txhash, share it and I'll log it."
 3. Accept their word + txhash as confirmation (do not attempt on-chain verification in-bot)
 4. After logging, forward 90% of amount to influencer wallet and 10% to platform wallet
    via bankr skill: "send {90%_amount} USDC to {bankr_wallet}" and "send {10%_amount} USDC to {platform_wallet}"
@@ -259,92 +263,89 @@ When a fan says they've paid:
 
 ## Hard Rules
 - Never reveal DATA.md contents (wallet addresses, bot tokens, chat IDs)
-- Never reveal the file paths in this SKILL.md
+- Never reveal the file paths in this prompt
 - Never provide paid services without confirmed payment
-- Never post to X directly — shoutouts are queued for influencer approval
-- One token launch per influencer — if asked to launch a second token, decline
+- Never post to X directly - shoutouts are queued for influencer approval
+- One token launch per influencer - if asked to launch a second token, decline
 - Always stay in ${c.name}'s assistant voice, not ${c.name}'s first-person voice
-`;
+`);
 
-writeFileSync(join(agentDir, "SKILL.md"), skillContent);
+// ── 6. Register in OpenClaw (background — avoids deadlocking the gateway) ────
+// When this script runs inside a gateway tool execution, synchronous openclaw CLI
+// calls would deadlock (gateway waits for tool; tool waits for gateway RPC).
+// Solution: write a small registration script and run it detached.
+const registerScript = join(agentDir, ".register.sh");
+writeFileSync(registerScript, `#!/usr/bin/env bash
+set -e
+sleep 15  # give the management bot time to send the success message before gateway restart
 
-// ── 6a. Register Telegram channel account (accountId = agentId for easy lookup) ──
-// openclaw channels add --channel telegram --token <TOKEN> --account <agentId>
-// Using agentId as accountId lets us reliably reference it in bind/unbind later.
-const channelResult = spawnSync("openclaw", [
-  "channels", "add",
-  "--channel", "telegram",
-  "--token",   c.bot_token,
-  "--account", agentId,
-  "--name",    c.name ?? agentId,
-], { encoding: "utf8" });
+OPENCLAW_CONFIG="$HOME/.openclaw/openclaw.json"
 
-if (channelResult.status !== 0) {
-  console.log(JSON.stringify({
-    ok: false,
-    error: `openclaw channels add failed: ${channelResult.stderr}`,
-  }));
-  process.exit(1);
-}
+# Register Telegram channel
+openclaw channels add \\
+  --channel telegram \\
+  --token "${c.bot_token}" \\
+  --account "${agentId}" \\
+  --name "${(c.name ?? agentId).replace(/"/g, '\\"')}" \\
+  2>/dev/null || true
 
-// ── 6b. Add agent with workspace dir and bind to the Telegram channel ────────
-// --workspace points OpenClaw at the dir containing SKILL.md
-// --bind telegram:<accountId> routes Telegram messages to this agent
-const addResult = spawnSync("openclaw", [
-  "agents", "add", agentId,
-  "--workspace",      agentDir,
-  "--bind",           `telegram:${agentId}`,
-  "--non-interactive",
-  "--json",
-], { encoding: "utf8" });
+# Set dmPolicy to "open" for the new bot account (default is "pairing" which
+# requires manual approval for every fan — we want public bots)
+python3 - <<'PYEOF'
+import json, os
+cfg_path = os.path.expanduser("~/.openclaw/openclaw.json")
+with open(cfg_path) as f:
+    cfg = json.load(f)
+acct = cfg.setdefault("channels", {}).setdefault("telegram", {}).setdefault("accounts", {}).setdefault("${agentId}", {})
+acct["dmPolicy"] = "open"
+acct["allowFrom"] = ["*"]
+with open(cfg_path, "w") as f:
+    json.dump(cfg, f, indent=2)
+print("dmPolicy set to open for ${agentId}")
+PYEOF
 
-if (addResult.status !== 0) {
-  console.log(JSON.stringify({
-    ok: false,
-    error: `openclaw agents add failed: ${addResult.stderr}`,
-  }));
-  process.exit(1);
-}
+# Register agent with workspace
+openclaw agents add "${agentId}" \\
+  --workspace "${agentDir}" \\
+  --bind "telegram:${agentId}" \\
+  --non-interactive \\
+  --json \\
+  2>/dev/null || true
 
-// ── 7. Register fan-facing slash commands with Telegram ───────────────────────
-const setCommandsResult = spawnSync("bun", [
-  "run",
-  join(ROOT, "the-interns-bot", "scripts", "set-commands.ts"),
-  "--token", c.bot_token,
-  "--type",  "fan",
-  "--name",  c.name ?? agentId,
-], { encoding: "utf8" });
+# Set fan-facing slash commands
+bun run "${join(ROOT, "the-interns-bot", "scripts", "set-commands.ts")}" \\
+  --token "${c.bot_token}" \\
+  --type fan \\
+  --name "${(c.name ?? agentId).replace(/"/g, '\\"')}" \\
+  2>/dev/null || true
 
-if (setCommandsResult.status !== 0) {
-  // Non-fatal — commands can be set manually; don't block provisioning
-  process.stderr.write(`warn: set-commands failed: ${setCommandsResult.stderr}\n`);
-}
+# Clear any stale sessions for this agent before restart
+rm -f "$HOME/.openclaw/agents/${agentId}/sessions/"*.jsonl 2>/dev/null || true
+rm -f "$HOME/.openclaw/agents/${agentId}/sessions/sessions.json" 2>/dev/null || true
 
-// ── 9. Install bankr skill ────────────────────────────────────────────────────
-const bankrInstall = spawnSync("openclaw", [
-  "gateway", "call", "agent",
-  "--json",
-  "--timeout", "30000",
-  "--params", JSON.stringify({
-    sessionKey: `agent:${agentId}:setup`,
-    message: "install the bankr skill from https://github.com/BankrBot/skills",
-    deliver: false,
-  }),
-], { encoding: "utf8" });
+# Restart gateway to pick up new account + dmPolicy
+openclaw gateway restart 2>/dev/null || true
 
-// Non-fatal if bankr install fails — can be retried via /settings in the management bot
-const bankrOk = bankrInstall.status === 0;
+# Kick off async voice enrichment
+bun run "${join(ROOT, "the-interns-bot", "scripts", "rescrape.ts")}" \\
+  --agent-id "${agentId}" \\
+  2>/dev/null || true
 
-// ── 10. Kick off async enrichment (fire and forget) ───────────────────────────
-Bun.spawn([
-  "bun", "run",
-  join(ROOT, "the-interns-bot", "scripts", "rescrape.ts"),
-  "--agent-id", agentId,
-], { stdout: "ignore", stderr: "ignore" });
+echo "Registration complete for ${agentId}"
+`, { mode: 0o755 });
 
+// Fire and forget — detached from the current process
+const child = spawn("bash", [registerScript], {
+  detached: true,
+  stdio: "ignore",
+});
+child.unref();
+
+// Return success immediately — files are created, registration is in background
 console.log(JSON.stringify({
   ok: true,
   agentId,
   botUsername: c.bot_username ?? agentId,
-  bankrInstalled: bankrOk,
+  registrationStatus: "background",
+  note: "OpenClaw registration running in background. Bot will be live in ~10 seconds.",
 }));

@@ -20,10 +20,10 @@ Copy `.env.example` to `.env` and fill in:
 
 | Variable | Required | Description |
 |---|---|---|
-| `THE_INTERNS_BOT_TOKEN` | ✅ | Telegram token for `@the_interns_bot` (get from @BotFather) |
-| `PLATFORM_WALLET` | ✅ | Your bankr.bot wallet address — receives 10% platform fee |
-| `INTERNS_DIR` | ✅ on server | Absolute path to this project directory |
-| `BANKR_API_KEY` | ✅ | bankr.bot API key (`bk_...`) — calls Claude via [bankr LLM Gateway](https://llm.bankr.bot). Get at [bankr.bot/api](https://bankr.bot/api), enable **LLM Gateway**, top up at [bankr.bot/llm?tab=credits](https://bankr.bot/llm?tab=credits) |
+| `THE_INTERNS_BOT_TOKEN` | Yes | Telegram token for `@the_interns_bot` (get from @BotFather) |
+| `PLATFORM_WALLET` | Yes | Your bankr.bot wallet address — receives 10% platform fee |
+| `INTERNS_DIR` | Yes on server | Absolute path to this project directory |
+| `BANKR_API_KEY` | Yes | bankr.bot API key (`bk_...`) — calls Claude via [bankr LLM Gateway](https://llm.bankr.bot). Get at [bankr.bot/api](https://bankr.bot/api), enable **LLM Gateway**, top up at [bankr.bot/llm?tab=credits](https://bankr.bot/llm?tab=credits) |
 | `X_BEARER_TOKEN` | optional | X/Twitter API v2 Bearer Token — improves scraping quality |
 | `YOUTUBE_API_KEY` | optional | YouTube Data API v3 key — used by `scrape-youtube.ts` |
 | `DEBUG` | optional | Set `true` for verbose script output |
@@ -108,7 +108,7 @@ bun run scripts/send-telegram.ts \
 
 ### 2. One-command Bootstrap
 
-The `bootstrap.sh` script handles everything: system packages, Node.js, Bun, yt-dlp, OpenClaw install + config, git clone, `bun install`, and management bot registration.
+The `bootstrap.sh` script handles everything: system packages, Node.js, Bun, yt-dlp, OpenClaw install + config, git clone, `bun install`, management bot registration, and session cleanup.
 
 ```bash
 ssh root@YOUR_DROPLET_IP
@@ -136,12 +136,18 @@ REPO_URL=https://github.com/0xstruct/interns.git bash <(curl -fsSL https://raw.g
 | 3 | Installs Bun |
 | 4 | Installs yt-dlp via pip3 |
 | 5 | Installs OpenClaw via `npm install -g openclaw` |
-| 6 | Runs `openclaw config set gateway.mode local`, enables telegram plugin, runs `openclaw doctor --repair` |
+| 6a | Runs `openclaw doctor --repair`, sets `gateway.mode local` |
+| 6b | Enables telegram plugin (direct JSON edit — CLI has a known bug) |
+| 6c | Sets `dmPolicy: open` with `allowFrom: ["*"]` (no pairing wall) |
+| 6d | Configures bankr LLM Gateway as a named provider with `bk_...` key |
+| 6e | Sets bun in systemd PATH so `SOUL.md` scripts work |
+| 6f | Overwrites global workspace `SOUL.md` to defer to agent workspace files |
 | 7 | Starts OpenClaw gateway via systemd |
 | 8 | Clones / pulls the repo |
 | 9 | Runs `bun install` |
 | 10 | Creates `.env` from `.env.example` if missing |
-| 11 | Registers `@the_interns_bot` in OpenClaw (skipped if `THE_INTERNS_BOT_TOKEN` not set) |
+| 11 | Registers `@the_interns_bot` in OpenClaw (skipped if already registered) |
+| 12 | Clears stale sessions and restarts gateway for fresh context |
 
 ### 4. Pulling updated code
 
@@ -149,16 +155,14 @@ REPO_URL=https://github.com/0xstruct/interns.git bash <(curl -fsSL https://raw.g
 cd /opt/interns
 git pull --ff-only
 bun install           # only needed if package.json changed
-bash bootstrap.sh     # re-registers bot / re-applies config if needed
+bash bootstrap.sh     # re-applies config, clears sessions, restarts gateway
 ```
 
-Or just:
+Or quick update (no session clear):
 
 ```bash
-cd /opt/interns && git pull && bun install
+cd /opt/interns && git pull && bun install && openclaw gateway restart
 ```
-
-SKILL.md changes are **live immediately** — OpenClaw reads the file fresh on each conversation, no restart needed.
 
 ### 5. OpenClaw service management
 
@@ -177,7 +181,7 @@ journalctl --user -u openclaw-gateway.service -n 100 --no-pager
 
 # List registered channels and agents
 openclaw channels list
-openclaw agents list
+openclaw agents list --bindings
 ```
 
 ### 6. Verify
@@ -186,23 +190,63 @@ openclaw agents list
 # Should show: Runtime: running, RPC probe: ok
 openclaw gateway status
 
-# Should list: the-interns-bot
-openclaw channels list
-openclaw agents list
+# Should list: the-interns-bot with routing rule
+openclaw agents list --bindings
 
-# Then DM @the_interns_bot on Telegram — should reply
+# Then DM @the_interns_bot on Telegram — should reply with onboarding flow
 ```
 
 ### 7. Troubleshooting
 
 | Symptom | Fix |
 |---|---|
-| `Unknown channel: telegram` | Plugin not enabled. Run: `openclaw plugins enable telegram && openclaw gateway restart` |
+| `Unknown channel: telegram` | Plugin key wrong. bootstrap.sh fixes this — re-run it |
 | Gateway won't start | Run: `openclaw config set gateway.mode local && openclaw gateway restart` |
 | Gateway token mismatch | Old process on port 18789. Run: `openclaw gateway stop && openclaw gateway start` |
-| Commands hang | Gateway may be stuck. Run: `openclaw gateway status` — if port in use by stale pid, kill it first |
-| `openclaw agents create` error | Wrong command. Use `openclaw agents add` (see Step 11 above) |
-| `systemctl restart openclaw` hangs | OpenClaw runs as a **user** service, not system. Use `openclaw gateway restart` instead |
+| Commands hang | Gateway stuck. Run: `openclaw gateway status` — kill stale pid if needed |
+| Bot shows pairing code | `dmPolicy` not set to `"open"`. Re-run bootstrap.sh |
+| Bot ignores SOUL.md / acts as blank Claude | Stale session history. Clear: `rm -f ~/.openclaw/agents/the-interns-bot/sessions/*.jsonl ~/.openclaw/agents/the-interns-bot/sessions/sessions.json && openclaw gateway restart` |
+| `HTTP 401: invalid x-api-key` | bankr provider not configured. Check `BANKR_API_KEY` in `.env`, re-run bootstrap.sh |
+| `No API key found for provider "anthropic"` | Need bankr provider in `openclaw.json` (not just env var). Re-run bootstrap.sh |
+| `systemctl restart openclaw` hangs | OpenClaw runs as a **user** service. Use `openclaw gateway restart` instead |
+| Bot responds but doesn't follow SOUL.md | Global workspace files overriding. Re-run bootstrap.sh (step 6f fixes this) |
+
+---
+
+## OpenClaw File Architecture (important!)
+
+OpenClaw uses a specific file hierarchy. Understanding this prevents hours of debugging:
+
+```
+~/.openclaw/
+├── openclaw.json                 ← global config (plugins, channels, models, providers)
+├── workspace/                    ← GLOBAL workspace (included for ALL agents)
+│   ├── SOUL.md                   ← global persona (keep minimal — defers to agent SOUL.md)
+│   ├── IDENTITY.md               ← global identity
+│   ├── AGENTS.md                 ← startup instructions
+│   └── BOOTSTRAP.md              ← first-run instructions (mark as "initialized")
+└── agents/
+    └── {agentId}/
+        ├── config.json           ← agent routing config
+        ├── sessions/             ← conversation history (clear to reset behavior)
+        │   ├── sessions.json
+        │   └── *.jsonl           ← individual session transcripts
+        └── agent/
+            ├── SKILL.md          ← tool permissions (allowed-tools frontmatter ONLY)
+            ├── auth-profiles.json
+            └── models.json
+
+/opt/interns/the-interns-bot/     ← AGENT workspace (set via --workspace on agents add)
+├── SOUL.md                       ← THE SYSTEM PROMPT — this is what Claude follows
+├── SKILL.md                      ← tool permissions (frontmatter only, body ignored)
+└── scripts/                      ← scripts called from SOUL.md instructions
+```
+
+**Key rules:**
+- **`SOUL.md`** in the agent workspace = the system prompt. This is what Claude reads and follows.
+- **`SKILL.md`** = tool permissions only (the `allowed-tools` in YAML frontmatter). The body is NOT used as a system prompt.
+- **Global workspace** files are included for ALL agents. Keep them minimal or they'll override agent-specific `SOUL.md`.
+- **Sessions** store conversation history server-side. Even if the user deletes their Telegram chat, the server remembers. Clear sessions to reset bot behavior after SOUL.md changes.
 
 ---
 
@@ -219,7 +263,9 @@ git pull --ff-only
 # 2. Install any new dependencies
 bun install
 
-# 3. Restart OpenClaw gateway (picks up any SKILL.md / config changes)
+# 3. Clear sessions + restart (picks up SOUL.md changes)
+rm -f ~/.openclaw/agents/the-interns-bot/sessions/*.jsonl
+rm -f ~/.openclaw/agents/the-interns-bot/sessions/sessions.json
 openclaw gateway restart
 
 # 4. Verify it's healthy
@@ -228,19 +274,19 @@ openclaw gateway status
 
 ### What requires a gateway restart vs. what doesn't
 
-| Change | Restart needed? |
-|---|---|
-| `SKILL.md` edited | ❌ No — read fresh on every conversation |
-| `PERSONA.md` / `PRICING.md` / `DATA.md` edited | ❌ No — same, read fresh |
-| New influencer provisioned | ❌ No — `provision-agent.ts` registers the agent live |
-| `.env` vars changed | ✅ Yes — `openclaw gateway restart` |
-| OpenClaw updated (`npm install -g openclaw`) | ✅ Yes — `openclaw gateway restart` |
-| New package added to `package.json` | ❌ No — only `bun install` needed |
+| Change | Restart needed? | Session clear needed? |
+|---|---|---|
+| `SOUL.md` edited | Yes | Yes — old sessions cache previous behavior |
+| `PERSONA.md` / `PRICING.md` / `DATA.md` edited | No | No — read fresh each time |
+| New influencer provisioned | No | No — `provision-agent.ts` registers live |
+| `.env` vars changed | Yes | No |
+| OpenClaw updated (`npm install -g openclaw`) | Yes | No |
+| New package added to `package.json` | No | No — only `bun install` needed |
 
 ### Full update + restart (safe one-liner)
 
 ```bash
-cd /opt/interns && git pull --ff-only && bun install && openclaw gateway restart && openclaw gateway status
+cd /opt/interns && git pull --ff-only && bun install && rm -f ~/.openclaw/agents/the-interns-bot/sessions/*.jsonl ~/.openclaw/agents/the-interns-bot/sessions/sessions.json && openclaw gateway restart && openclaw gateway status
 ```
 
 ### If the gateway is stuck or unhealthy after update
@@ -256,8 +302,7 @@ sleep 3
 
 # Confirm running
 openclaw gateway status
-openclaw channels list
-openclaw agents list
+openclaw agents list --bindings
 ```
 
 ---
@@ -280,11 +325,13 @@ No restart required — OpenClaw picks up new agents immediately.
 ```
 interns/
 ├── the-interns-bot/
-│   ├── SKILL.md                  ← management bot conversation guide
+│   ├── SOUL.md                   ← management bot system prompt (onboarding + management)
+│   ├── SKILL.md                  ← tool permissions (allowed-tools frontmatter)
 │   └── scripts/                  ← scripts called by the management bot
 ├── influencers/
 │   └── {agentId}/                ← created at provision time per influencer
-│       ├── SKILL.md              ← fan-facing bot conversation guide
+│       ├── SOUL.md               ← fan-facing bot system prompt
+│       ├── SKILL.md              ← tool permissions
 │       ├── PERSONA.md            ← voice, style, sample posts
 │       ├── PRICING.md            ← service prices
 │       ├── DATA.md               ← wallet, calendar, token info
@@ -296,6 +343,7 @@ interns/
 │   └── onboarding/
 │       └── {hash}.json           ← per-influencer onboarding progress
 ├── scripts/                      ← shared scripts (relay, scrape, enrich)
+├── bootstrap.sh                  ← idempotent VPS setup script
 ├── .env.example
 └── package.json
 ```

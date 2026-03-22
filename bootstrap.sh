@@ -91,11 +91,15 @@ fi
 #   a) doctor --repair  — creates ~/.openclaw, sessions dir, installs systemd service
 #   b) config set gateway.mode local  — required or gateway refuses to start
 #   c) fix telegram plugin in JSON  — the CLI `enable` command writes the wrong key
-#   d) configure bankr LLM gateway as a named provider + set agent default model
+#   d) set dmPolicy to "open" with allowFrom: ["*"] for public bots
+#   e) configure bankr LLM gateway as a named provider + set agent default model
 #      IMPORTANT: setting ANTHROPIC_API_KEY env var only configures the built-in
 #      Anthropic provider (api.anthropic.com). bankr uses a different base URL and
 #      a bk_... key, so it must be declared as a separate provider in openclaw.json.
-#   e) loginctl enable-linger  — keeps user systemd services alive after SSH logout
+#   f) loginctl enable-linger  — keeps user systemd services alive after SSH logout
+#   g) set bun in PATH for systemd service (so SOUL.md bun run commands work)
+#   h) set global workspace SOUL.md to defer to agent workspace files
+#
 # Load .env early so BANKR_API_KEY and other vars are available for OpenClaw config.
 # (Full .env setup/creation happens in step 10; this just pre-loads if the file exists.)
 if [[ -f "$INTERNS_DIR/.env" ]]; then
@@ -114,11 +118,7 @@ openclaw doctor --repair 2>&1 | grep -E '(Created|Tightened|Installed|CRITICAL)'
 # 6b. Set gateway mode
 openclaw config set gateway.mode local
 
-# 6c. Enable telegram plugin directly in JSON.
-#     IMPORTANT: `openclaw plugins enable telegram` has a known bug — it writes
-#     "@openclaw/telegram" (npm package name) as the key instead of "telegram"
-#     (the plugin ID). This causes "Unknown channel: telegram" even after enabling.
-#     Directly editing the JSON is the reliable fix.
+# 6c–e. Enable telegram plugin, set dmPolicy, configure bankr provider — all in one JSON edit
 if [[ -f "$OPENCLAW_CONFIG" ]]; then
   python3 - <<PYEOF
 import json, os
@@ -134,11 +134,13 @@ if "@openclaw/telegram" in entries:
 entries["telegram"] = {"enabled": True}
 print("  telegram plugin: enabled")
 
+# ── DM policy: open (public bots, no pairing wall) ──────────────────────────
+tg = cfg.setdefault("channels", {}).setdefault("telegram", {})
+tg["dmPolicy"] = "open"
+tg["allowFrom"] = ["*"]
+print("  dmPolicy: open (allowFrom: *)")
+
 # ── bankr LLM gateway provider ───────────────────────────────────────────────
-# ANTHROPIC_API_KEY env var only reaches the built-in Anthropic provider.
-# bankr needs its own named provider block pointing at llm.bankr.bot, with the
-# bk_... key inline. The agent default must reference "bankr/claude-sonnet-4-5"
-# so requests are routed through the bankr gateway instead of api.anthropic.com.
 bankr_key = os.environ.get("BANKR_API_KEY", "")
 if bankr_key:
     models_cfg = cfg.setdefault("models", {})
@@ -175,23 +177,42 @@ else
   exit 1
 fi
 
-# 6d. Keep user systemd services alive after SSH logout
+# 6f. Keep user systemd services alive after SSH logout
 loginctl enable-linger root 2>/dev/null || true
 
-# 6e. Ensure bun is in PATH for the OpenClaw systemd service.
-#     Without this, SKILL.md commands like `bun run ...` fail silently
+# 6g. Ensure bun is in PATH for the OpenClaw systemd service.
+#     Without this, SOUL.md commands like `bun run ...` fail silently
 #     because systemd services don't inherit the user's shell PATH.
+#     We write the FULL env.conf each time (idempotent) to avoid duplicate lines.
 SYSTEMD_DROP_IN="$HOME/.config/systemd/user/openclaw-gateway.service.d/env.conf"
 mkdir -p "$(dirname "$SYSTEMD_DROP_IN")"
-if ! grep -q '.bun/bin' "$SYSTEMD_DROP_IN" 2>/dev/null; then
-  cat >> "$SYSTEMD_DROP_IN" << 'ENVEOF'
+cat > "$SYSTEMD_DROP_IN" << 'ENVEOF'
+[Service]
 Environment=PATH=/root/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 ENVEOF
-  systemctl --user daemon-reload 2>/dev/null || true
-  ok "Bun added to systemd service PATH"
-else
-  ok "Bun already in systemd service PATH"
-fi
+systemctl --user daemon-reload 2>/dev/null || true
+ok "Systemd PATH configured"
+
+# 6h. Set global workspace SOUL.md to defer to agent workspace files.
+#     OpenClaw reads SOUL.md (NOT SKILL.md) as the system prompt.
+#     The global workspace SOUL.md is included for ALL agents, so we make it
+#     minimal — each agent's workspace SOUL.md provides the real instructions.
+GLOBAL_WORKSPACE="$HOME/.openclaw/workspace"
+mkdir -p "$GLOBAL_WORKSPACE"
+cat > "$GLOBAL_WORKSPACE/SOUL.md" << 'EOF'
+# SOUL.md
+You are an AI assistant. Follow your workspace SOUL.md for specific instructions.
+Be helpful, direct, and concise.
+EOF
+
+cat > "$GLOBAL_WORKSPACE/AGENTS.md" << 'EOF'
+# AGENTS.md
+Follow your workspace SOUL.md. That is your complete instruction set.
+Do not run bootstrap sequences, do not update memory files.
+EOF
+
+printf '# Initialized\n' > "$GLOBAL_WORKSPACE/BOOTSTRAP.md"
+printf '# See SOUL.md\n' > "$GLOBAL_WORKSPACE/IDENTITY.md"
 
 ok "OpenClaw configured"
 
@@ -307,6 +328,32 @@ else
 fi
 
 # ---------------------------------------------------------
+# 12. Clear stale sessions + restart gateway
+#     After code updates, old conversation sessions may have
+#     cached bot behavior that conflicts with new SOUL.md.
+#     Clearing sessions forces a fresh start with new instructions.
+# ---------------------------------------------------------
+log "Clearing stale sessions and restarting gateway..."
+# Clear ALL agent sessions — after code updates, old conversation history
+# may have cached bot behavior that conflicts with new SOUL.md instructions.
+for _sess_dir in "$HOME/.openclaw/agents"/*/sessions; do
+  if [[ -d "$_sess_dir" ]]; then
+    rm -f "$_sess_dir"/*.jsonl "$_sess_dir"/sessions.json
+  fi
+done
+ok "Stale sessions cleared (all agents)"
+
+openclaw gateway restart 2>/dev/null || true
+
+# Wait for healthy restart
+sleep 3
+if openclaw gateway status 2>/dev/null | grep -q "RPC probe: ok"; then
+  ok "Gateway restarted and healthy"
+else
+  warn "Gateway may need a moment — check: openclaw gateway status"
+fi
+
+# ---------------------------------------------------------
 # Done
 # ---------------------------------------------------------
 echo ""
@@ -318,12 +365,12 @@ echo "  Gateway:  $(openclaw gateway status 2>/dev/null | grep 'Runtime:' | sed 
 echo "  Agents:   $(openclaw agents list 2>/dev/null | grep -c '^\-' || echo 0) registered"
 echo ""
 echo "  Next steps:"
-echo "    1. DM @the_interns_bot on Telegram — it should reply"
-echo "    2. Update code:  cd $INTERNS_DIR && git pull && bun install && openclaw gateway restart"
+echo "    1. DM @the_interns_bot on Telegram — it should reply with the onboarding flow"
+echo "    2. Update code:  cd $INTERNS_DIR && git pull && bun install && bash bootstrap.sh"
 echo "    3. View logs:    journalctl --user -u openclaw-gateway.service -f"
 echo ""
 echo "  Troubleshooting:"
 echo "    openclaw gateway status"
 echo "    openclaw channels list"
-echo "    openclaw agents list"
+echo "    openclaw agents list --bindings"
 echo "=================================================="
