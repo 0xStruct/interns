@@ -315,9 +315,98 @@ Influencers onboard themselves by DMing `@the_interns_bot`. No manual steps need
 After they complete the 18-step flow, `provision-agent.ts` runs automatically and:
 1. Creates skill files in `/opt/interns/influencers/{agentId}/`
 2. Registers the agent in OpenClaw (`openclaw channels add` + `openclaw agents add`)
-3. Starts background voice enrichment
+3. Sets `dmPolicy: open` so fans can DM without pairing codes
+4. Registers slash commands (fan commands for everyone, `/owner` for the influencer)
+5. Starts background voice enrichment
 
 No restart required — OpenClaw picks up new agents immediately.
+
+---
+
+## Re-provisioning a Fan-Facing Bot
+
+If you update `provision-agent.ts` (e.g. changed SOUL.md template, pricing format, or slash commands), re-provision existing bots:
+
+```bash
+cd /opt/interns
+
+# Re-provision a specific bot (regenerates SOUL.md, PERSONA.md, PRICING.md, etc.)
+STATE_FILE=$(ls state/onboarding/*.json | head -1)   # or the specific influencer's state file
+bun run the-interns-bot/scripts/provision-agent.ts \
+  --agent-id {agentId} \
+  --state-file "$STATE_FILE"
+
+# Clear sessions so the bot picks up the new SOUL.md
+rm -f ~/.openclaw/agents/{agentId}/sessions/*.jsonl
+rm -f ~/.openclaw/agents/{agentId}/sessions/sessions.json
+
+# Wait for background registration (15s) then restart
+sleep 20 && openclaw gateway restart
+```
+
+To re-provision **all** fan-facing bots after a template change:
+
+```bash
+cd /opt/interns
+for state_file in state/onboarding/*.json; do
+  agent_id=$(python3 -c "import json; d=json.load(open('$state_file')); print(d.get('collected',{}).get('agentId', d.get('agentId','')))" 2>/dev/null)
+  if [ -n "$agent_id" ]; then
+    echo "Re-provisioning $agent_id..."
+    bun run the-interns-bot/scripts/provision-agent.ts \
+      --agent-id "$agent_id" --state-file "$state_file"
+  fi
+done
+
+# Clear all sessions and restart
+rm -f ~/.openclaw/agents/*/sessions/*.jsonl ~/.openclaw/agents/*/sessions/sessions.json
+sleep 20 && openclaw gateway restart
+```
+
+---
+
+## Updating Slash Commands
+
+Slash commands are registered via Telegram Bot API and cached by Telegram. To update them:
+
+### Management bot (`@the_interns_bot`)
+
+```bash
+source /opt/interns/.env
+bun run the-interns-bot/scripts/set-commands.ts \
+  --token "$THE_INTERNS_BOT_TOKEN" \
+  --type management
+```
+
+### Fan-facing bot (per influencer)
+
+```bash
+# Get bot token and owner chat ID from the influencer's DATA.md
+BOT_TOKEN=$(grep 'bot_token:' /opt/interns/influencers/{agentId}/DATA.md | awk '{print $2}')
+OWNER_CHAT_ID=$(grep 'influencer_chat_id:' /opt/interns/influencers/{agentId}/DATA.md | awk '{print $2}')
+
+bun run the-interns-bot/scripts/set-commands.ts \
+  --token "$BOT_TOKEN" \
+  --type fan \
+  --name "Influencer Name" \
+  --handle "influencer_handle" \
+  --owner-chat-id "$OWNER_CHAT_ID"
+```
+
+**Options for `set-commands.ts`:**
+
+| Flag | Description |
+|---|---|
+| `--token` | Telegram bot token (required) |
+| `--type` | `management` or `fan` |
+| `--name` | Influencer display name (used in command descriptions) |
+| `--handle` | X handle without `@` (appended as "Name (handle)" in descriptions) |
+| `--owner-chat-id` | Telegram chat ID of the bot owner — enables `/owner` command scoped to them |
+
+**Fan commands** (visible to everyone): `/start`, `/dm`, `/shoutout`, `/meeting`, `/qa`
+
+**Owner commands** (visible only to the influencer): `/owner` — shows bot overview, fan engagement, and links to `@the_interns_bot` for settings
+
+**Note:** Telegram caches slash commands. Users may need to close and reopen the chat to see updates.
 
 ---
 
