@@ -45,14 +45,17 @@ const state = JSON.parse(readFileSync(stateFile, "utf8"));
 const c = state.collected ?? {};
 
 const agentDir = join(ROOT, "influencers", agentId);
+const handleNoAt = (c.handle ?? "").replace(/^@/, "");
+const displayName = `${c.name} (${handleNoAt})`;
+const xUrl = `x.com/${handleNoAt}`;
 mkdirSync(agentDir, { recursive: true });
 
 // ── 1. PERSONA.md ─────────────────────────────────────────────────────────────
-writeFileSync(join(agentDir, "PERSONA.md"), `# ${c.name} — Persona
+writeFileSync(join(agentDir, "PERSONA.md"), `# ${displayName} — Persona
 
 ## Identity
-- Full name: ${c.name}
-- X handle: ${c.handle}
+- Full name: ${displayName}
+- X profile: ${xUrl}
 - Bio: ${c.bio ?? "Not provided"}
 
 ## Topics
@@ -73,27 +76,27 @@ ${c.voice ?? "Professional, direct, and helpful. Speaks with authority on their 
 `);
 
 // ── 2. PRICING.md ─────────────────────────────────────────────────────────────
-writeFileSync(join(agentDir, "PRICING.md"), `# ${c.name} — Pricing
+writeFileSync(join(agentDir, "PRICING.md"), `# ${displayName} — Pricing
 
 ## VVIP DM
 - price_usd: ${c.vvip_dm_price ?? 50}
 - turnaround: 48 hours
-- description: A direct, personal reply from ${c.name} to your question.
+- description: A direct, personal reply from ${displayName} to your question.
 
 ## 1:1 Meeting
 - price_usd: ${c.meeting_price ?? 200}
 - duration_min: 30
-- description: A one-on-one call with ${c.name}.
+- description: A one-on-one call with ${displayName}.
 
 ## X Shoutout
 - price_usd: ${c.shoutout_price && c.shoutout_price !== "skip" ? c.shoutout_price : "disabled"}
-- description: ${c.name} will post a custom shoutout mentioning your handles on X.
+- description: ${displayName} will post a custom shoutout mentioning your handles on X.
 - enabled: ${c.shoutout_price && c.shoutout_price !== "skip" ? "true" : "false"}
 `);
 
 // ── 3. DATA.md ────────────────────────────────────────────────────────────────
 const calProvider = (c.calendar_link ?? "").includes("calendly.com") ? "Calendly" : "cal.com";
-writeFileSync(join(agentDir, "DATA.md"), `# ${c.name} — Operational Data
+writeFileSync(join(agentDir, "DATA.md"), `# ${displayName} — Operational Data
 
 ## Payment
 - bankr_wallet: ${c.bankr_wallet ?? ""}
@@ -113,26 +116,27 @@ writeFileSync(join(agentDir, "DATA.md"), `# ${c.name} — Operational Data
 - token_launched: ${c.token_address && c.token_address !== "skip" ? "true" : "false"}
 
 ## Social
-- x_handle: ${c.handle}
+- x_profile: ${xUrl}
 - youtube_url: ${c.youtube_url && c.youtube_url !== "skip" ? c.youtube_url : ""}
 - newsletter_url: ${c.newsletter_url && c.newsletter_url !== "skip" ? c.newsletter_url : ""}
 `);
 
 // ── 4. CONTEXT.md ─────────────────────────────────────────────────────────────
-writeFileSync(join(agentDir, "CONTEXT.md"), `# ${c.name} — Background Context
+writeFileSync(join(agentDir, "CONTEXT.md"), `# ${displayName} — Background Context
 
 ## Who They Are
 ${c.bio ?? "No bio provided."}
+X profile: ${xUrl}
 
 ## Areas of Expertise
 ${(c.topics ?? "").split(",").map((t: string) => `- ${t.trim()}`).join("\n")}
 
 ## What This Bot Does
-This is ${c.name}'s AI intern on Telegram. It handles:
-1. VVIP DMs — fans pay to ask ${c.name} a question directly
-2. X Shoutouts — fans pay for a personalised shoutout post
+This is ${displayName}'s AI intern on Telegram. It handles:
+1. VVIP DMs — fans pay to ask ${displayName} a question directly
+2. X Shoutouts — fans pay for a personalised shoutout post on ${xUrl}
 3. Meeting bookings — paid 1:1 calls via ${calProvider}
-4. Free Q&A and content discovery in ${c.name}'s voice
+4. Free Q&A and content discovery in ${displayName}'s voice
 
 ## Video Transcripts
 *Will be populated by scrape-youtube.ts after provisioning.*
@@ -152,10 +156,10 @@ allowed-tools:
 `);
 
 // ── 5b. SOUL.md (fan-facing system prompt — OpenClaw reads this, NOT SKILL.md body)
-writeFileSync(join(agentDir, "SOUL.md"), `# ${c.name}'s AI Intern
+writeFileSync(join(agentDir, "SOUL.md"), `# ${displayName}'s AI Intern
 
-You are the AI intern for ${c.handle}. You are NOT ${c.name}. You are their assistant.
-If sincerely asked whether you are human or AI, say you are ${c.name}'s AI intern.
+You are the AI intern for ${xUrl}. You are NOT ${displayName}. You are their assistant.
+If sincerely asked whether you are human or AI, say you are ${displayName}'s AI intern.
 
 ## Startup
 At the start of every conversation, read these files in order:
@@ -168,7 +172,7 @@ At the start of every conversation, read these files in order:
 
 ## Capability 1 — VVIP DM
 
-Trigger: fan wants to send a direct message or question to ${c.name}.
+Trigger: fan wants to send a direct message or question to ${displayName}.
 
 Steps:
 1. Read vvip_dm price from PRICING.md
@@ -184,14 +188,14 @@ Steps:
         --message "{fan_message}" \\
         --message-id {new_uuid} \\
         --paid-amount {amount}
-   b. Tell fan: "Your message has been delivered to ${c.name}. They'll reply here when ready."
+   b. Tell fan: "Your message has been delivered to ${displayName}. They'll reply here when ready."
 7. When you receive a reply routed back (via the_interns_bot), forward it to the fan.
 
 ---
 
 ## Capability 2 — X Shoutout
 
-Trigger: fan wants a shoutout on X from ${c.name}.
+Trigger: fan wants a shoutout on X from ${displayName}.
 
 Steps:
 1. Read shoutout price from PRICING.md; if enabled is false, say unavailable
@@ -199,7 +203,7 @@ Steps:
 3. Provide bankr wallet for payment
 4. After payment confirmation, collect:
    - Shoutout message (max 280 chars)
-   - Up to 3 X handles to tag (e.g. @alice @bob @carol)
+   - Up to 3 X handles to tag (e.g. x.com/alice x.com/bob x.com/carol)
    - Tweet URL to retweet? (optional — paste or say "none")
 5. Run: bun run ${ROOT}/scripts/relay-shoutout.ts \\
      --agent-id ${agentId} \\
@@ -210,29 +214,29 @@ Steps:
      --rt-url "{rt_url_or_empty}" \\
      --message-id {new_uuid} \\
      --paid-amount {amount}
-6. Tell fan: "Your shoutout request is with ${c.name} for review. You'll hear back here."
+6. Tell fan: "Your shoutout request is with ${displayName} for review. You'll hear back here."
 7. If influencer approves -> fan is notified automatically. If declined -> fan receives reason.
 
 ---
 
 ## Capability 3 — Meeting Booking
 
-Trigger: fan wants to book a call or meeting with ${c.name}.
+Trigger: fan wants to book a call or meeting with ${displayName}.
 
 Steps:
 1. Read meeting price and duration from PRICING.md
 2. Quote price + duration
 3. Provide bankr wallet for payment
 4. After payment confirmation, share booking_link from DATA.md
-5. Say: "You're all set - pick a time at the link above. ${c.name} will see your booking."
+5. Say: "You're all set - pick a time at the link above. ${displayName} will see your booking."
 
 ---
 
 ## Capability 4 — General Q&A (Free)
 
-Trigger: fan asks a general question about ${c.name}'s areas of expertise.
+Trigger: fan asks a general question about ${displayName}'s areas of expertise.
 
-- Answer in ${c.name}'s voice and style (from PERSONA.md)
+- Answer in ${displayName}'s voice and style (from PERSONA.md)
 - Draw on expertise areas and context from CONTEXT.md
 - Reference SAMPLES section of PERSONA.md for voice examples
 - Do NOT answer off-limits topics
@@ -242,11 +246,11 @@ Trigger: fan asks a general question about ${c.name}'s areas of expertise.
 
 ## Capability 5 — Content Discovery (Free)
 
-Trigger: fan asks about specific topics, asks for recommendations, or says "what has ${c.name} said about X".
+Trigger: fan asks about specific topics, asks for recommendations, or says "what has ${displayName} said about X".
 
 - Search PERSONA.md SAMPLES section for relevant posts
 - Quote or summarise relevant content
-- Always attribute: "Here's what ${c.name} has said about this..."
+- Always attribute: "Here's what ${displayName} has said about this..."
 
 ---
 
@@ -267,7 +271,8 @@ When a fan says they've paid:
 - Never provide paid services without confirmed payment
 - Never post to X directly - shoutouts are queued for influencer approval
 - One token launch per influencer - if asked to launch a second token, decline
-- Always stay in ${c.name}'s assistant voice, not ${c.name}'s first-person voice
+- Always stay in ${displayName}'s assistant voice, not ${displayName}'s first-person voice
+- When referencing the influencer's X profile, use ${xUrl} (not @${handleNoAt})
 `);
 
 // ── 6. Register in OpenClaw (background — avoids deadlocking the gateway) ────
