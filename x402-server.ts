@@ -198,38 +198,104 @@ function deliverService(
 
 const app = new Hono();
 
+// ── Discovery helpers ─────────────────────────────────────────────────────────
+
+function loadAllInfluencers(): Influencer[] {
+  const root = path.join(INTERNS_DIR, "influencers");
+  if (!fs.existsSync(root)) return [];
+  return fs.readdirSync(root)
+    .filter(d => d.endsWith("-intern") && fs.statSync(path.join(root, d)).isDirectory())
+    .map(dir => readInfluencer(dir.replace(/-intern$/, "")))
+    .filter((inf): inf is Influencer => !!inf && !!inf.wallet);
+}
+
+function buildDiscoveredResources(influencers: Influencer[]) {
+  const items: object[] = [];
+  for (const inf of influencers) {
+    for (const svc of ["dm", "shoutout", "meeting"] as Service[]) {
+      const resource = `${BASE_URL}/agents/${inf.handle}/${svc}`;
+      items.push({
+        resource,
+        type:        "http",
+        x402Version: 1,
+        accepts:     [buildRequirements(inf, svc, resource)],
+      });
+    }
+  }
+  return items;
+}
+
 // ── Discovery ─────────────────────────────────────────────────────────────────
 
-/** List every active intern bot with its x402 endpoints. AI agents start here. */
+/**
+ * x402 standard discovery endpoint (ListDiscoveryResourcesResponse).
+ * x402-aware agents check /.well-known/x402.json to find all payable resources.
+ */
+app.get("/.well-known/x402.json", (c) => {
+  const items = buildDiscoveredResources(loadAllInfluencers());
+  return c.json({ x402Version: 1, items });
+});
+
+/**
+ * Emerging agents.json convention — general-purpose agent discovery.
+ * Lists every intern bot as an agent with capabilities and endpoints.
+ */
+app.get("/.well-known/agents.json", (c) => {
+  const influencers = loadAllInfluencers();
+  const agents = influencers.map(inf => ({
+    id:          `${BASE_URL}/agents/${inf.handle}`,
+    name:        inf.name,
+    description: `AI intern for ${inf.name} — handles paid DMs, X shoutouts, and meeting bookings on behalf of ${inf.name}.`,
+    url:         `${BASE_URL}/agents/${inf.handle}`,
+    telegram:    `https://t.me/${inf.botUsername}`,
+    payment:     { protocol: "x402", network: NETWORK, currency: "USDC", asset: USDC },
+    capabilities: (["dm", "shoutout", "meeting"] as Service[]).map(svc => ({
+      name:        svc,
+      description: serviceDesc(inf.name, svc),
+      endpoint:    `${BASE_URL}/agents/${inf.handle}/${svc}`,
+      paywall:     `${BASE_URL}/pay/${inf.handle}/${svc}`,
+      price_usd:   inf.pricing[svc],
+    })),
+  }));
+
+  return c.json({
+    platform:    "interns.bot",
+    description: "AI intern bots for creators, artists, and influencers. Pay with USDC on Base via x402.",
+    discovery:   `${BASE_URL}/.well-known/x402.json`,
+    agents,
+  });
+});
+
+/** Human-readable index — also used as the root for programmatic clients. */
 app.get("/", (c) => {
-  const root = path.join(INTERNS_DIR, "influencers");
-  if (!fs.existsSync(root)) return c.json({ platform: "interns.bot", agents: [] });
-
-  const agents = fs.readdirSync(root)
-    .filter(d => d.endsWith("-intern") && fs.statSync(path.join(root, d)).isDirectory())
-    .map(dir => {
-      const handle = dir.replace(/-intern$/, "");
-      const inf = readInfluencer(handle);
-      if (!inf || !inf.wallet) return null;
-      return {
-        handle,
-        name:     inf.name,
-        telegram: `https://t.me/${inf.botUsername}`,
-        services: (["dm", "shoutout", "meeting"] as Service[]).reduce((acc, svc) => {
-          acc[svc] = {
-            endpoint:    `${BASE_URL}/agents/${handle}/${svc}`,
-            paywall_url: `${BASE_URL}/pay/${handle}/${svc}`,
-            price_usd:   inf.pricing[svc],
-            currency:    "USDC",
-            network:     NETWORK,
-          };
-          return acc;
-        }, {} as Record<string, unknown>),
+  const influencers = loadAllInfluencers();
+  const agents = influencers.map(inf => ({
+    handle:   inf.handle,
+    name:     inf.name,
+    telegram: `https://t.me/${inf.botUsername}`,
+    catalog:  `${BASE_URL}/agents/${inf.handle}`,
+    services: (["dm", "shoutout", "meeting"] as Service[]).reduce((acc, svc) => {
+      acc[svc] = {
+        endpoint:    `${BASE_URL}/agents/${inf.handle}/${svc}`,
+        paywall_url: `${BASE_URL}/pay/${inf.handle}/${svc}`,
+        price_usd:   inf.pricing[svc],
+        currency:    "USDC",
+        network:     NETWORK,
       };
-    })
-    .filter(Boolean);
+      return acc;
+    }, {} as Record<string, unknown>),
+  }));
 
-  return c.json({ platform: "interns.bot", x402Version: 1, network: NETWORK, agents });
+  return c.json({
+    platform:    "interns.bot",
+    x402Version: 1,
+    network:     NETWORK,
+    discovery: {
+      x402:   `${BASE_URL}/.well-known/x402.json`,
+      agents: `${BASE_URL}/.well-known/agents.json`,
+    },
+    agents,
+  });
 });
 
 /** Full service catalog for a single influencer. */
