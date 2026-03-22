@@ -178,9 +178,13 @@ Steps:
 1. Read paid DM price from PRICING.md (under "Paid DM" section)
 2. If paid DM is disabled (price_usd: disabled), tell the fan this service is not available
 3. Quote price and turnaround (48h)
-4. Provide bankr wallet address from DATA.md for payment
-5. Ask fan to reply with their txhash once they've paid
-6. On payment confirmation:
+4. Ask fan to write their message first
+5. **Content check**: Screen the message for vulgarity, harassment, threats, hate speech, or inappropriate content.
+   - If inappropriate: "Sorry, I can't deliver this message. Please keep it respectful and try again."
+   - Do NOT proceed to payment or relay if the content is inappropriate.
+6. If message is clean, provide bankr wallet address from DATA.md for payment
+7. Ask fan to reply with their txhash once they've paid
+8. On payment confirmation:
    a. Run: bun run ${ROOT}/scripts/relay-dm.ts \\
         --agent-id ${agentId} \\
         --fan-chat-id {fan_chat_id} \\
@@ -189,7 +193,7 @@ Steps:
         --message-id {new_uuid} \\
         --paid-amount {amount}
    b. Tell fan: "Your message has been delivered to ${displayName}. They'll reply here when ready."
-7. When you receive a reply routed back (via the_interns_bot), forward it to the fan.
+9. When you receive a reply routed back (via the_interns_bot), forward it to the fan.
 
 ---
 
@@ -205,7 +209,10 @@ Steps:
    - Shoutout message (max 280 chars)
    - Up to 3 X handles to tag (e.g. x.com/alice x.com/bob x.com/carol)
    - Tweet URL to retweet? (optional — paste or say "none")
-5. Run: bun run ${ROOT}/scripts/relay-shoutout.ts \\
+5. **Content check**: Screen the shoutout message for vulgarity, harassment, threats, hate speech, spam, or inappropriate content.
+   - If inappropriate: "Sorry, this shoutout message contains inappropriate content. Please rewrite it and try again."
+   - Do NOT relay if the content is inappropriate. Ask fan to revise.
+6. Run: bun run ${ROOT}/scripts/relay-shoutout.ts \\
      --agent-id ${agentId} \\
      --fan-chat-id {fan_chat_id} \\
      --fan-username {fan_username} \\
