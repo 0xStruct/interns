@@ -618,6 +618,99 @@
 
 <div class="divider"></div>
 
+<!-- x402 / AGENT-TO-AGENT -->
+<section id="x402">
+  <div class="container">
+    <div style="text-align:center; margin-bottom:3rem;">
+      <div class="section-label">For AI Agents</div>
+      <h2>Agent-to-agent commerce.<br/><em>Fully autonomous.</em></h2>
+      <p class="section-sub" style="margin:0 auto;">Every intern bot is discoverable and payable by other AI agents via the <a class="link" href="https://github.com/coinbase/x402" target="_blank">x402 protocol</a> — HTTP payments with USDC on Base. No humans needed.</p>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:2rem; align-items:start; margin-bottom:3rem;">
+      <div>
+        <h3 style="font-size:1.2rem; font-weight:800; margin-bottom:1.5rem; color:var(--accent2);">How it works</h3>
+        <div style="display:flex; flex-direction:column; gap:1.25rem;">
+          <div style="display:flex; gap:1rem; align-items:flex-start;">
+            <div style="width:28px; height:28px; border-radius:8px; background:rgba(0,212,170,0.15); border:1px solid rgba(0,212,170,0.3); display:flex; align-items:center; justify-content:center; font-size:0.8rem; font-weight:800; color:var(--accent2); flex-shrink:0;">1</div>
+            <div>
+              <div style="font-weight:700; margin-bottom:0.2rem;">Discover</div>
+              <div style="font-size:0.875rem; color:var(--muted);">Any agent fetches <code style="background:var(--bg2); padding:0.1rem 0.4rem; border-radius:4px; font-size:0.8rem;">/.well-known/x402.json</code> to find all intern bots, their services, and pricing — no prior knowledge needed.</div>
+            </div>
+          </div>
+          <div style="display:flex; gap:1rem; align-items:flex-start;">
+            <div style="width:28px; height:28px; border-radius:8px; background:rgba(0,212,170,0.15); border:1px solid rgba(0,212,170,0.3); display:flex; align-items:center; justify-content:center; font-size:0.8rem; font-weight:800; color:var(--accent2); flex-shrink:0;">2</div>
+            <div>
+              <div style="font-weight:700; margin-bottom:0.2rem;">Pay</div>
+              <div style="font-size:0.875rem; color:var(--muted);">Agent POSTs to the service endpoint. Gets a <code style="background:var(--bg2); padding:0.1rem 0.4rem; border-radius:4px; font-size:0.8rem;">402</code> back with payment details. Signs a USDC transfer on Base and retries.</div>
+            </div>
+          </div>
+          <div style="display:flex; gap:1rem; align-items:flex-start;">
+            <div style="width:28px; height:28px; border-radius:8px; background:rgba(0,212,170,0.15); border:1px solid rgba(0,212,170,0.3); display:flex; align-items:center; justify-content:center; font-size:0.8rem; font-weight:800; color:var(--accent2); flex-shrink:0;">3</div>
+            <div>
+              <div style="font-weight:700; margin-bottom:0.2rem;">Receive</div>
+              <div style="font-size:0.875rem; color:var(--muted);">Service is delivered instantly — DM queued, shoutout relayed, or a unique one-time booking link returned. Fully verifiable on Base.</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top:2rem; display:flex; flex-wrap:wrap; gap:0.75rem;">
+          <span class="stack-pill"><span class="dot"></span>x402 protocol</span>
+          <span class="stack-pill"><span class="dot"></span>USDC on Base</span>
+          <span class="stack-pill"><span class="dot"></span>/.well-known discovery</span>
+          <span class="stack-pill"><span class="dot"></span>No API keys</span>
+          <span class="stack-pill"><span class="dot"></span>agents.json</span>
+        </div>
+      </div>
+
+      <div>
+        <h3 style="font-size:1.2rem; font-weight:800; margin-bottom:1.25rem; color:var(--accent2);">Try it — 3 commands</h3>
+        <div style="background:var(--bg2); border:1px solid var(--border); border-radius:16px; padding:1.5rem; font-family:monospace; font-size:0.78rem; line-height:1.7; overflow-x:auto;">
+          <div style="color:var(--muted); margin-bottom:0.75rem; font-family:inherit; font-size:0.72rem; text-transform:uppercase; letter-spacing:0.08em;">Discover all intern bots</div>
+          <div><span style="color:#6c8ebf;">curl</span> <span style="color:var(--accent2);">https://api.interns.bot/.well-known/x402.json</span></div>
+          <div style="color:var(--muted); margin:1rem 0 0.75rem; font-family:inherit; font-size:0.72rem; text-transform:uppercase; letter-spacing:0.08em;">Request a paid DM (get 402)</div>
+          <div><span style="color:#6c8ebf;">curl</span> -X POST <span style="color:var(--accent2);">https://api.interns.bot/agents/0xdeployer/dm</span></div>
+          <div style="margin-top:0.25rem; padding-left:1rem; color:var(--muted);">  -d <span style="color:#d4a96a;">'{"message":"Love your work!"}'</span></div>
+          <div style="color:var(--muted); margin:1rem 0 0.75rem; font-family:inherit; font-size:0.72rem; text-transform:uppercase; letter-spacing:0.08em;">Pay &amp; deliver (x402 client)</div>
+          <div><span style="color:var(--muted);"># agent signs USDC payment, retries with header:</span></div>
+          <div><span style="color:#6c8ebf;">curl</span> -X POST <span style="color:var(--accent2);">https://api.interns.bot/agents/0xdeployer/dm</span> \</div>
+          <div style="padding-left:1rem;"><span style="color:#9b59b6;">-H</span> <span style="color:#d4a96a;">"X-PAYMENT: &lt;signed_usdc_auth&gt;"</span> \</div>
+          <div style="padding-left:1rem;"><span style="color:#9b59b6;">-d</span> <span style="color:#d4a96a;">'{"message":"Love your work!"}'</span></div>
+          <div style="margin-top:0.75rem; color:var(--accent2);">→ 200 OK  {"success":true,"txHash":"0x..."}</div>
+        </div>
+
+        <div style="margin-top:1rem; display:flex; gap:0.75rem; flex-wrap:wrap;">
+          <a href="https://api.interns.bot/.well-known/x402.json" target="_blank" class="btn-teal" style="font-size:0.85rem; padding:0.6rem 1.2rem; display:inline-flex; align-items:center; gap:0.4rem; border-radius:10px; font-weight:700; background:rgba(0,212,170,0.12); border:1px solid rgba(0,212,170,0.3);">
+            ⚡ x402 Discovery
+          </a>
+          <a href="https://api.interns.bot/.well-known/agents.json" target="_blank" class="btn-teal" style="font-size:0.85rem; padding:0.6rem 1.2rem; display:inline-flex; align-items:center; gap:0.4rem; border-radius:10px; font-weight:700; background:rgba(0,212,170,0.12); border:1px solid rgba(0,212,170,0.3);">
+            🤖 agents.json
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <div style="background:linear-gradient(135deg,rgba(108,99,255,0.08),rgba(0,212,170,0.06)); border:1px solid var(--border); border-radius:16px; padding:1.75rem 2rem; display:flex; align-items:center; gap:1.5rem; flex-wrap:wrap;">
+      <div style="font-size:2rem;">🔗</div>
+      <div style="flex:1; min-width:200px;">
+        <div style="font-weight:800; margin-bottom:0.25rem;">Build on top of interns.bot</div>
+        <div style="color:var(--muted); font-size:0.9rem;">Any AI agent can autonomously discover creators, pay for services, and get results — all onchain, all verifiable. No API keys, no OAuth, no accounts. Just x402 + USDC on Base.</div>
+      </div>
+      <a href="https://github.com/0xstruct/interns" target="_blank" class="btn-secondary" style="white-space:nowrap; display:inline-flex; align-items:center; gap:0.5rem; padding:0.7rem 1.4rem; border-radius:10px; font-weight:700; font-size:0.9rem; background:var(--bg2); border:1px solid var(--border);">
+        📖 Read the docs
+      </a>
+    </div>
+  </div>
+</section>
+
+<style>
+  @media (max-width: 700px) {
+    #x402 > .container > div:nth-child(2) { grid-template-columns: 1fr !important; }
+  }
+</style>
+
+<div class="divider"></div>
+
 <!-- TRY IT -->
 <section class="demo-section" id="try">
   <div class="container">

@@ -148,6 +148,7 @@ REPO_URL=https://github.com/0xstruct/interns.git bash <(curl -fsSL https://raw.g
 | 9 | Runs `bun install` |
 | 10 | Creates `.env` from `.env.example` if missing |
 | 11 | Registers `@the_interns_bot` in OpenClaw (skipped if already registered); runs `set-admins-commands.ts` and `set-fans-commands.ts` |
+| 11b | Installs `interns-x402` systemd user service (x402 payment HTTP server on port 4402) |
 | 12 | Clears stale sessions and restarts gateway for fresh context |
 
 ### 4. Pulling updated code
@@ -211,6 +212,152 @@ openclaw agents list --bindings
 | `No API key found for provider "anthropic"` | Need bankr provider in `openclaw.json` (not just env var). Re-run bootstrap.sh |
 | `systemctl restart openclaw` hangs | OpenClaw runs as a **user** service. Use `openclaw gateway restart` instead |
 | Bot responds but doesn't follow SOUL.md | Global workspace files overriding. Re-run bootstrap.sh (step 6f fixes this) |
+
+---
+
+## DNS + Reverse Proxy for `api.interns.bot`
+
+The x402 payment server runs on port `4402` internally. To expose it publicly with HTTPS:
+
+### 1. Add DNS A record
+
+In your DNS provider (DigitalOcean, Cloudflare, etc.), add:
+
+| Type | Name | Value |
+|------|------|-------|
+| A | `api` | `YOUR_DROPLET_IP` |
+
+If your domain is managed in DigitalOcean:
+
+```
+Networking → Domains → your domain → Add record
+Type: A   Hostname: api   Value: <Droplet IP>   TTL: 3600
+```
+
+Wait 1–5 minutes for DNS to propagate: `dig api.interns.bot`
+
+### 2. Install nginx + certbot
+
+```bash
+apt install -y nginx certbot python3-certbot-nginx
+```
+
+### 3. Create nginx site config
+
+```bash
+nano /etc/nginx/sites-available/api.interns.bot
+```
+
+Paste:
+
+```nginx
+server {
+    listen 80;
+    server_name api.interns.bot;
+
+    location / {
+        proxy_pass         http://127.0.0.1:4402;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+Enable and test:
+
+```bash
+ln -s /etc/nginx/sites-available/api.interns.bot /etc/nginx/sites-enabled/
+nginx -t && systemctl reload nginx
+```
+
+### 4. Issue TLS certificate
+
+```bash
+certbot --nginx -d api.interns.bot
+```
+
+Certbot auto-edits the nginx config to add HTTPS and schedules auto-renewal.
+
+### 5. Update `.env`
+
+```bash
+# in /opt/interns/.env
+X402_BASE_URL=https://api.interns.bot
+X402_NETWORK=base          # switch to mainnet when ready
+```
+
+Then restart the x402 server:
+
+```bash
+systemctl --user restart interns-x402.service
+# verify:
+curl https://api.interns.bot/
+```
+
+### x402 service logs
+
+```bash
+journalctl --user -u interns-x402.service -f
+```
+
+---
+
+## x402 — Agent-to-Agent Payments
+
+Every fan-facing intern bot is also accessible as an HTTP service payable via the [x402 protocol](https://github.com/coinbase/x402) — USDC on Base, no API keys, no OAuth.
+
+### Discovery
+
+```bash
+# All intern bots + their payable services (x402 standard format)
+curl https://api.interns.bot/.well-known/x402.json
+
+# General agent discovery (agents.json convention)
+curl https://api.interns.bot/.well-known/agents.json
+
+# Human-readable index
+curl https://api.interns.bot/
+
+# One influencer's service catalog
+curl https://api.interns.bot/agents/0xdeployer
+```
+
+### Paying as an AI agent
+
+```bash
+# Step 1 — call the endpoint, get 402 back with payment requirements
+curl -s -X POST https://api.interns.bot/agents/0xdeployer/dm \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Love your work!", "from": "agent_alice"}'
+# → 402  { "x402Version":1, "accepts":[{ "maxAmountRequired":"5000000", "payTo":"0x...", ... }] }
+
+# Step 2 — sign a USDC transferWithAuthorization (EIP-3009) using an x402 client
+# Step 3 — retry with X-PAYMENT header
+curl -s -X POST https://api.interns.bot/agents/0xdeployer/dm \
+  -H "Content-Type: application/json" \
+  -H "X-PAYMENT: <base64_signed_payment>" \
+  -d '{"message": "Love your work!", "from": "agent_alice"}'
+# → 200  { "success":true, "txHash":"0x...", "delivered":true }
+```
+
+### Available endpoints per influencer
+
+| Method | Endpoint | Service | Body fields |
+|--------|----------|---------|-------------|
+| POST | `/agents/:handle/dm` | Paid DM | `message`, `from` |
+| POST | `/agents/:handle/shoutout` | X shoutout | `text`, `from` |
+| POST | `/agents/:handle/meeting` | Meeting booking | `from` |
+| GET | `/pay/:handle/:service` | Browser paywall (OnchainKit) | — |
+| POST | `/sessions/:handle/:service` | Create Telegram fan session | `message`/`text`, `from` |
+| GET | `/sessions/:ref/status` | Poll session payment status | — |
+
+### x402 client libraries
+
+- TypeScript: `x402/client` (from the `x402` npm package)
+- Python: coming soon — for now use the raw HTTP approach with `viem` or `ethers.js`
 
 ---
 
@@ -490,6 +637,9 @@ interns/
 | `THE_INTERNS_BOT_TOKEN` | Telegram | @BotFather on Telegram | `@the_interns_bot` itself |
 | `BANKR_API_KEY` | bankr.bot LLM Gateway | [bankr.bot/api](https://bankr.bot/api) → enable LLM Gateway | Claude voice synthesis via `enrich-persona.ts` — routes through [llm.bankr.bot](https://llm.bankr.bot) |
 | `PLATFORM_WALLET` | bankr.bot wallet | [bankr.bot](https://bankr.bot) | Receiving 10% platform fees |
+| `X402_BASE_URL` | — | Set to `https://api.interns.bot` after DNS setup | Public URL of the x402 payment server |
+| `X402_NETWORK` | — | `base-sepolia` (testnet) or `base` (mainnet) | Which Base network to use for USDC payments |
+| `CDP_CLIENT_KEY` | Coinbase Developer Platform | [portal.cdp.coinbase.com](https://portal.cdp.coinbase.com) → create project | OnchainKit paywall UI for browser fan payments |
 | `X_BEARER_TOKEN` | X/Twitter API | [developer.twitter.com](https://developer.twitter.com) | Scraping influencer tweets (optional) |
 | `YOUTUBE_API_KEY` | YouTube Data API | [console.cloud.google.com](https://console.cloud.google.com) | Listing channel videos (optional) |
 
