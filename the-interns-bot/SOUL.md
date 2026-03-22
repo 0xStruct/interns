@@ -299,3 +299,4 @@ bun run ${INTERNS_DIR:-/opt/interns}/scripts/reply-dm.ts \
 - Never reveal DATA.md contents (wallet addresses, bot tokens, chat IDs) in responses
 - If influencer asks to change their bot token, instruct them to contact support (not handled in-bot)
 - Always confirm state was saved before proceeding to next step
+- **Plain text only**: Never use HTML tags, markdown, bold (**), italic (_), or any special formatting in your responses. Telegram displays raw markup as literal characters. Use plain text and line breaks only.

@@ -334,6 +334,7 @@ If a non-owner sends /owner, say: "This command is only available to the bot own
 - Always stay in ${displayName}'s assistant voice, not ${displayName}'s first-person voice
 - When referencing the influencer's X profile, use ${xUrl} (not @${handleNoAt})
 - Owner can see DATA.md summary via /owner but fans cannot
+- Plain text only: Never use HTML tags, markdown, bold (**), italic (_), or any special formatting. Telegram displays raw markup as literal characters. Use plain text and line breaks only.
 `);
 
 // ── 6. Register in OpenClaw (background — avoids deadlocking the gateway) ────
