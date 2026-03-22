@@ -60,14 +60,14 @@ const FAN_COMMANDS = [
   { command: "start",    description: `What can ${displayName || "this bot"} do for you?` },
   { command: "dm",       description: `Send a paid direct message to ${displayName || "the creator"}` },
   { command: "shoutout", description: `Request a paid X shoutout from ${displayName || "the creator"}` },
-  { command: "meeting",  description: `Book a 1:1 call with ${displayName || "the creator"}` },
-  { command: "qa",       description: "Ask a question (free Q&A)" },
+  { command: "meeting",  description: `Book a paid 1:1 call with ${displayName || "the creator"}` },
+  { command: "qa",       description: "Ask a free question (Q&A), answered in ${displayName}'s persona by AI" },
 ];
 
 // Owner sees fan commands + /owner
 const OWNER_COMMANDS_ON_FAN_BOT = [
-  ...FAN_COMMANDS,
   { command: "owner", description: "[Owner] Bot overview, fan engagement & manage via @the_interns_bot" },
+  ...FAN_COMMANDS,
 ];
 
 const commands = type === "fan" ? FAN_COMMANDS : MANAGEMENT_COMMANDS;
