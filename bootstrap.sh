@@ -183,7 +183,7 @@ loginctl enable-linger root 2>/dev/null || true
 #     because systemd services don't inherit the user's shell PATH.
 SYSTEMD_DROP_IN="$HOME/.config/systemd/user/openclaw-gateway.service.d/env.conf"
 mkdir -p "$(dirname "$SYSTEMD_DROP_IN")"
-if ! grep -q 'BUN_INSTALL' "$SYSTEMD_DROP_IN" 2>/dev/null; then
+if ! grep -q '.bun/bin' "$SYSTEMD_DROP_IN" 2>/dev/null; then
   cat >> "$SYSTEMD_DROP_IN" << 'ENVEOF'
 Environment=PATH=/root/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 ENVEOF
