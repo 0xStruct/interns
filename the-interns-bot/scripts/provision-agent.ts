@@ -226,9 +226,24 @@ Trigger: fan wants to book a call or meeting with ${displayName}.
 Steps:
 1. Read meeting price and duration from PRICING.md
 2. Quote price + duration
-3. Provide bankr wallet for payment
-4. After payment confirmation, share booking_link from DATA.md
-5. Say: "You're all set - pick a time at the link above. ${displayName} will see your booking."
+3. Provide bankr wallet address from DATA.md for payment
+4. Ask fan to reply with their txhash once they've paid
+5. On payment confirmation:
+   a. Generate a unique booking ref: \`pay_\` + 8 random hex chars (e.g. \`pay_a1b2c3d4\`)
+   b. Build one-time booking URL: append \`?metadata[ref]=PAY_REF&metadata[fan]={fan_username}\` to the booking_link from DATA.md
+      Example: \`https://cal.com/johndoe/30min?metadata[ref]=pay_a1b2c3d4&metadata[fan]=@alice\`
+   c. Run: bun run ${ROOT}/scripts/relay-dm.ts \\
+        --agent-id ${agentId} \\
+        --fan-chat-id {fan_chat_id} \\
+        --fan-username {fan_username} \\
+        --message "Meeting booking paid (ref: {PAY_REF})" \\
+        --message-id {new_uuid} \\
+        --paid-amount {amount}
+   d. Share the one-time URL with the fan:
+      "Payment confirmed! Here's your personal booking link (valid for 24 hours, single use):
+      {one_time_booking_url}
+      Pick a time that works for you."
+6. NEVER share the plain booking link without payment. Always generate a unique ref URL.
 
 ---
 
