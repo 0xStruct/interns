@@ -147,7 +147,7 @@ REPO_URL=https://github.com/0xstruct/interns.git bash <(curl -fsSL https://raw.g
 | 8 | Clones / pulls the repo |
 | 9 | Runs `bun install` |
 | 10 | Creates `.env` from `.env.example` if missing |
-| 11 | Registers `@the_interns_bot` in OpenClaw (skipped if already registered) |
+| 11 | Registers `@the_interns_bot` in OpenClaw (skipped if already registered); runs `set-admins-commands.ts` and `set-fans-commands.ts` |
 | 12 | Clears stale sessions and restarts gateway for fresh context |
 
 ### 4. Pulling updated code
@@ -362,14 +362,9 @@ done
 ```bash
 cd /opt/interns
 
-# Set your variables (replace with real values from Step 1)
-AGENT_ID="0xdeployer-intern"
-STATE_FILE="state/onboarding/a3f1b2c4d5e6f7a8b9c0d1e2f3a4b5c6.json"   # from Step 1
-
-# Re-provision (regenerates SOUL.md, PERSONA.md, PRICING.md, DATA.md, CONTEXT.md, SKILL.md)
-bun run the-interns-bot/scripts/provision-agent.ts \
-  --agent-id "$AGENT_ID" \
-  --state-file "$STATE_FILE"
+# Re-provision (state file is found automatically from state/onboarding/*.json)
+AGENT_ID="0xdeployer-intern"   # from Step 1
+bun run the-interns-bot/scripts/provision-agent.ts --agent-id "$AGENT_ID"
 
 # Clear sessions so the bot picks up the new SOUL.md
 rm -f ~/.openclaw/agents/"$AGENT_ID"/sessions/*.jsonl
@@ -383,13 +378,13 @@ sleep 20 && openclaw gateway restart
 
 ```bash
 cd /opt/interns
-for state_file in state/onboarding/*.json; do
-  agent_id=$(python3 -c "import json; d=json.load(open('$state_file')); print(d.get('collected',{}).get('agentId', ''))" 2>/dev/null)
-  if [ -n "$agent_id" ] && [ -d "influencers/$agent_id" ]; then
-    echo "Re-provisioning $agent_id..."
-    bun run the-interns-bot/scripts/provision-agent.ts \
-      --agent-id "$agent_id" --state-file "$state_file"
-  fi
+
+# Re-provision every influencer (state files are auto-located per agent)
+for agent_id in influencers/*/; do
+  agent_id="${agent_id%/}"
+  agent_id="${agent_id#influencers/}"
+  echo "Re-provisioning $agent_id..."
+  bun run the-interns-bot/scripts/provision-agent.ts --agent-id "$agent_id"
 done
 
 # Clear all fan-bot sessions and restart
@@ -401,81 +396,50 @@ sleep 20 && openclaw gateway restart
 
 ## Updating Slash Commands
 
-Slash commands are registered via Telegram Bot API and cached by Telegram. To update them:
+Slash commands are registered via the Telegram Bot API and cached by Telegram. Two dedicated scripts handle this — one per bot type.
 
-### Management bot (`@the_interns_bot`)
+### Management bot (`@the_interns_bot`) — `set-admins-commands.ts`
+
+Reads `THE_INTERNS_BOT_TOKEN` from `.env` automatically:
 
 ```bash
-source /opt/interns/.env
-bun run the-interns-bot/scripts/set-commands.ts \
-  --token "$THE_INTERNS_BOT_TOKEN" \
-  --type management
+cd /opt/interns
+source .env
+bun run the-interns-bot/scripts/set-admins-commands.ts
+# or pass the token explicitly:
+bun run the-interns-bot/scripts/set-admins-commands.ts --token "$THE_INTERNS_BOT_TOKEN"
 ```
 
-### Fan-facing bot (per influencer)
+Commands registered: `/settings`, `/setprice`, `/setcal`, `/persona`, `/rescrape`, `/pause`, `/resume`, `/buyback`, `/launchtoken`
 
-**Step 1 — Look up the required values from the influencer's files:**
+### Fan-facing bots — `set-fans-commands.ts`
+
+Reads all required values (bot token, name, handle, owner chat ID) directly from each influencer's `DATA.md` and `PERSONA.md` — no manual lookup needed.
 
 ```bash
 cd /opt/interns
 
-# Set this to the influencer's agentId (directory name under influencers/)
-AGENT_ID="0xdeployer-intern"
+# Update ALL fan bots at once
+bun run the-interns-bot/scripts/set-fans-commands.ts
 
-# Bot token — from DATA.md
-BOT_TOKEN=$(grep 'bot_token:' influencers/"$AGENT_ID"/DATA.md | awk '{print $2}')
-echo "BOT_TOKEN: $BOT_TOKEN"
-
-# Owner's Telegram chat ID — from DATA.md
-OWNER_CHAT_ID=$(grep 'influencer_chat_id:' influencers/"$AGENT_ID"/DATA.md | awk '{print $2}')
-echo "OWNER_CHAT_ID: $OWNER_CHAT_ID"
-
-# Influencer's full name — from PERSONA.md (line: "Full name: ...")
-INFLUENCER_NAME=$(grep 'Full name:' influencers/"$AGENT_ID"/PERSONA.md | sed 's/.*Full name: //')
-echo "INFLUENCER_NAME: $INFLUENCER_NAME"
-
-# X handle without @ — from PERSONA.md (line: "X profile: x.com/...")
-HANDLE=$(grep 'X profile:' influencers/"$AGENT_ID"/PERSONA.md | sed 's|.*x.com/||')
-echo "HANDLE: $HANDLE"
+# Update a single bot
+bun run the-interns-bot/scripts/set-fans-commands.ts --agent-id 0xdeployer-intern
 ```
 
-**Step 2 — Register the commands:**
+To find the `agentId`, list the directories under `influencers/`:
 
 ```bash
-bun run the-interns-bot/scripts/set-commands.ts \
-  --token "$BOT_TOKEN" \
-  --type fan \
-  --name "$INFLUENCER_NAME" \
-  --handle "$HANDLE" \
-  --owner-chat-id "$OWNER_CHAT_ID"
+ls influencers/
+# 0xdeployer-intern/  johndoe-intern/
 ```
 
-Or as a one-liner with all values inlined (useful when you already know them):
+Commands registered for everyone: `/start`, `/dm`, `/shoutout`, `/meeting`, `/qa`
 
-```bash
-bun run the-interns-bot/scripts/set-commands.ts \
-  --token "7123456789:AAG..." \
-  --type fan \
-  --name "0xDeployer" \
-  --handle "0xDeployer" \
-  --owner-chat-id "987654321"
-```
-
-**Options for `set-commands.ts`:**
-
-| Flag | Where to find it | Description |
-|---|---|---|
-| `--token` | `influencers/{agentId}/DATA.md` → `bot_token:` | Telegram bot token (required) |
-| `--type` | — | `management` or `fan` |
-| `--name` | `influencers/{agentId}/PERSONA.md` → `Full name:` | Influencer display name |
-| `--handle` | `influencers/{agentId}/PERSONA.md` → `X profile: x.com/{handle}` | X handle without `@` |
-| `--owner-chat-id` | `influencers/{agentId}/DATA.md` → `influencer_chat_id:` | Telegram chat ID of the bot owner |
-
-**Fan commands** (visible to everyone): `/start`, `/dm`, `/shoutout`, `/meeting`, `/qa`
-
-**Owner commands** (visible only to the influencer): `/owner` — shows bot overview, fan engagement, and links to `@the_interns_bot` for settings
+Owner-only command (scoped to the influencer's chat ID): `/owner`
 
 **Note:** Telegram caches slash commands. Users may need to close and reopen the chat to see updates.
+
+> `bootstrap.sh` runs both scripts automatically on every run — re-running bootstrap after a code update will refresh all commands.
 
 ---
 

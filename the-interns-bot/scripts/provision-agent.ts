@@ -2,52 +2,77 @@
 /**
  * provision-agent.ts
  * Creates all skill files for a new influencer and registers them in OpenClaw.
+ * The state file is automatically located by scanning state/onboarding/*.json
+ * for the entry whose agentId or derived handle matches --agent-id.
  *
  * Usage:
- *   bun run the-interns-bot/scripts/provision-agent.ts \
- *     --agent-id johndoe-intern \
- *     --state-file /path/to/state.json
+ *   bun run the-interns-bot/scripts/provision-agent.ts --agent-id johndoe-intern
  *
  * Output JSON: { ok: true, agentId, botUsername } | { ok: false, error }
  */
 
 import { parseArgs } from "util";
-import { mkdirSync, writeFileSync, readFileSync, existsSync } from "fs";
+import { mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
-import { spawnSync, spawn } from "child_process";
+import { spawn } from "child_process";
 
 const ROOT = process.env.INTERNS_DIR ?? join(dirname(fileURLToPath(import.meta.url)), "../..");
 
 const { values } = parseArgs({
   args: Bun.argv.slice(2),
   options: {
-    "agent-id":   { type: "string" },
-    "state-file": { type: "string" },
+    "agent-id": { type: "string" },
   },
   strict: false,
 });
 
-const agentId   = values["agent-id"];
-const stateFile = values["state-file"];
+const agentId = values["agent-id"];
 
-if (!agentId || !stateFile) {
-  console.log(JSON.stringify({ ok: false, error: "Missing --agent-id or --state-file" }));
+if (!agentId) {
+  console.log(JSON.stringify({ ok: false, error: "Missing --agent-id" }));
   process.exit(1);
 }
 
-if (!existsSync(stateFile)) {
-  console.log(JSON.stringify({ ok: false, error: `State file not found: ${stateFile}` }));
+// ── Auto-locate the state file ────────────────────────────────────────────────
+// Derive the expected agentId from a handle (same formula SOUL.md uses)
+function deriveAgentId(handle: string): string {
+  return handle.replace(/^@/, "").toLowerCase().replace(/[^a-z0-9]+/g, "-") + "-intern";
+}
+
+const stateDir = join(ROOT, "state", "onboarding");
+let stateFile: string | null = null;
+
+if (existsSync(stateDir)) {
+  for (const file of readdirSync(stateDir).filter(f => f.endsWith(".json"))) {
+    try {
+      const data = JSON.parse(readFileSync(join(stateDir, file), "utf8"));
+      const c = data.collected ?? {};
+      if (c.agentId === agentId || deriveAgentId(c.handle ?? "") === agentId) {
+        stateFile = join(stateDir, file);
+        break;
+      }
+    } catch {
+      // skip malformed files
+    }
+  }
+}
+
+if (!stateFile) {
+  console.log(JSON.stringify({
+    ok: false,
+    error: `No state file found for agentId "${agentId}". Check state/onboarding/*.json contains an entry with matching agentId or handle.`,
+  }));
   process.exit(1);
 }
 
 const state = JSON.parse(readFileSync(stateFile, "utf8"));
 const c = state.collected ?? {};
 
-const agentDir = join(ROOT, "influencers", agentId);
+const agentDir   = join(ROOT, "influencers", agentId);
 const handleNoAt = (c.handle ?? "").replace(/^@/, "");
 const displayName = `${c.name} (${handleNoAt})`;
-const xUrl = `x.com/${handleNoAt}`;
+const xUrl        = `x.com/${handleNoAt}`;
 mkdirSync(agentDir, { recursive: true });
 
 // ── 1. PERSONA.md ─────────────────────────────────────────────────────────────
@@ -354,12 +379,8 @@ openclaw agents add "${agentId}" \\
   2>/dev/null || true
 
 # Set fan-facing slash commands (+ owner-scoped /owner command)
-bun run "${join(ROOT, "the-interns-bot", "scripts", "set-commands.ts")}" \\
-  --token "${c.bot_token}" \\
-  --type fan \\
-  --name "${(c.name ?? agentId).replace(/"/g, '\\"')}" \\
-  --handle "${handleNoAt}" \\
-  ${c.influencer_chat_id && c.influencer_chat_id !== "skip" ? `--owner-chat-id "${c.influencer_chat_id}"` : ""} \\
+bun run "${join(ROOT, "the-interns-bot", "scripts", "set-fans-commands.ts")}" \\
+  --agent-id "${agentId}" \\
   2>/dev/null || true
 
 # Clear any stale sessions for this agent before restart

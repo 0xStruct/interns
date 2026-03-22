@@ -337,11 +337,18 @@ else
 
   # Register slash commands with Telegram (idempotent — safe to re-run)
   log "Setting Telegram slash commands for @the_interns_bot..."
-  bun run "$INTERNS_DIR/the-interns-bot/scripts/set-commands.ts" \
+  bun run "$INTERNS_DIR/the-interns-bot/scripts/set-admins-commands.ts" \
     --token "$THE_INTERNS_BOT_TOKEN" \
-    --type management \
   && ok "Slash commands registered" \
-  || warn "set-commands.ts failed — run manually: bun run $INTERNS_DIR/the-interns-bot/scripts/set-commands.ts --token \$THE_INTERNS_BOT_TOKEN --type management"
+  || warn "set-admins-commands.ts failed — run manually: bun run $INTERNS_DIR/the-interns-bot/scripts/set-admins-commands.ts"
+
+  # Refresh fan-facing slash commands for any already-provisioned bots
+  if [[ -d "$INTERNS_DIR/influencers" ]] && ls "$INTERNS_DIR/influencers"/*/DATA.md &>/dev/null; then
+    log "Refreshing fan bot slash commands..."
+    bun run "$INTERNS_DIR/the-interns-bot/scripts/set-fans-commands.ts" \
+    && ok "Fan bot commands updated" \
+    || warn "set-fans-commands.ts failed — run manually: bun run $INTERNS_DIR/the-interns-bot/scripts/set-fans-commands.ts"
+  fi
 fi
 
 # ---------------------------------------------------------

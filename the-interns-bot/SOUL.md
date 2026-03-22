@@ -160,10 +160,9 @@ When status becomes `provisioning`:
 3. Run:
 ```bash
 bun run ${INTERNS_DIR:-/opt/interns}/the-interns-bot/scripts/provision-agent.ts \
-  --agent-id {agentId} \
-  --state-file ${INTERNS_DIR:-/opt/interns}/state/onboarding/{hash}.json
+  --agent-id {agentId}
 ```
-(The hash is sha256(chat_id).slice(0,32) — use the state file path returned by save-state.ts)
+(The state file is located automatically from state/onboarding/*.json by matching handle/agentId)
 
 4. If `ok: true` (note: `registrationStatus: "background"` means OpenClaw registration is happening
    in the background — the bot will be live in ~10 seconds, which is fine):
