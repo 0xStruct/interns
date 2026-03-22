@@ -346,11 +346,13 @@ openclaw agents add "${agentId}" \\
   --json \\
   2>/dev/null || true
 
-# Set fan-facing slash commands
+# Set fan-facing slash commands (+ owner-scoped /owner command)
 bun run "${join(ROOT, "the-interns-bot", "scripts", "set-commands.ts")}" \\
   --token "${c.bot_token}" \\
   --type fan \\
   --name "${(c.name ?? agentId).replace(/"/g, '\\"')}" \\
+  --handle "${handleNoAt}" \\
+  ${c.influencer_chat_id && c.influencer_chat_id !== "skip" ? `--owner-chat-id "${c.influencer_chat_id}"` : ""} \\
   2>/dev/null || true
 
 # Clear any stale sessions for this agent before restart

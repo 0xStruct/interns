@@ -24,6 +24,7 @@ const { values } = parseArgs({
     token:           { type: "string" },
     type:            { type: "string", default: "management" },
     name:            { type: "string", default: "" },
+    handle:          { type: "string", default: "" },
     "owner-chat-id": { type: "string", default: "" },
   },
   strict: false,
@@ -31,7 +32,9 @@ const { values } = parseArgs({
 
 const token       = values["token"];
 const type        = values["type"];
-const name        = values["name"];
+const rawName     = values["name"] ?? "";
+const handle      = (values["handle"] ?? "").replace(/^@/, "");
+const displayName = handle ? `${rawName} (${handle})` : rawName;
 const ownerChatId = values["owner-chat-id"];
 
 if (!token) {
@@ -54,10 +57,10 @@ const MANAGEMENT_COMMANDS = [
 ];
 
 const FAN_COMMANDS = [
-  { command: "start",    description: `What can ${name || "this bot"} do for you?` },
-  { command: "dm",       description: `Send a paid direct message to ${name || "the creator"}` },
-  { command: "shoutout", description: `Request a paid X shoutout from ${name || "the creator"}` },
-  { command: "meeting",  description: `Book a 1:1 call with ${name || "the creator"}` },
+  { command: "start",    description: `What can ${displayName || "this bot"} do for you?` },
+  { command: "dm",       description: `Send a paid direct message to ${displayName || "the creator"}` },
+  { command: "shoutout", description: `Request a paid X shoutout from ${displayName || "the creator"}` },
+  { command: "meeting",  description: `Book a 1:1 call with ${displayName || "the creator"}` },
   { command: "qa",       description: "Ask a question (free Q&A)" },
 ];
 
