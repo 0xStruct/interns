@@ -142,6 +142,7 @@ print("  dmPolicy: open (allowFrom: *)")
 
 # ── bankr LLM gateway provider ───────────────────────────────────────────────
 bankr_key = os.environ.get("BANKR_API_KEY", "")
+llm_model = os.environ.get("LLM_MODEL", "gemini-3-flash")
 if bankr_key:
     models_cfg = cfg.setdefault("models", {})
     models_cfg["mode"] = "merge"
@@ -152,19 +153,35 @@ if bankr_key:
         "api": "anthropic-messages",
         "models": [
             {
+                "id": "gemini-3-flash",
+                "name": "Gemini 3 Flash",
+                "contextWindow": 1000000,
+                "maxTokens": 8192,
+                "api": "anthropic-messages",
+                "cost": {"input": 0.15, "output": 0.60}
+            },
+            {
                 "id": "claude-sonnet-4-5",
                 "name": "Claude Sonnet 4.5",
                 "contextWindow": 200000,
                 "maxTokens": 16000,
                 "api": "anthropic-messages",
                 "cost": {"input": 3.0, "output": 15.0}
+            },
+            {
+                "id": "claude-haiku-3-5",
+                "name": "Claude Haiku 3.5",
+                "contextWindow": 200000,
+                "maxTokens": 8192,
+                "api": "anthropic-messages",
+                "cost": {"input": 0.25, "output": 1.25}
             }
         ]
     }
-    # Set as default model for all agents
+    # Set default model (configurable via LLM_MODEL env var)
     agents_cfg = cfg.setdefault("agents", {})
-    agents_cfg.setdefault("defaults", {}).setdefault("model", {})["primary"] = "bankr/claude-sonnet-4-5"
-    print("  bankr LLM provider: configured (model: bankr/claude-sonnet-4-5)")
+    agents_cfg.setdefault("defaults", {}).setdefault("model", {})["primary"] = f"bankr/{llm_model}"
+    print(f"  bankr LLM provider: configured (model: bankr/{llm_model})")
 else:
     print("  WARN: BANKR_API_KEY not set — bankr LLM provider not configured")
     print("        Set BANKR_API_KEY in .env and re-run bootstrap.sh")

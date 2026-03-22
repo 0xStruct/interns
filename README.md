@@ -23,7 +23,8 @@ Copy `.env.example` to `.env` and fill in:
 | `THE_INTERNS_BOT_TOKEN` | Yes | Telegram token for `@the_interns_bot` (get from @BotFather) |
 | `PLATFORM_WALLET` | Yes | Your bankr.bot wallet address — receives 10% platform fee |
 | `INTERNS_DIR` | Yes on server | Absolute path to this project directory |
-| `BANKR_API_KEY` | Yes | bankr.bot API key (`bk_...`) — calls Claude via [bankr LLM Gateway](https://llm.bankr.bot). Get at [bankr.bot/api](https://bankr.bot/api), enable **LLM Gateway**, top up at [bankr.bot/llm?tab=credits](https://bankr.bot/llm?tab=credits) |
+| `BANKR_API_KEY` | Yes | bankr.bot API key (`bk_...`) — calls LLM via [bankr LLM Gateway](https://llm.bankr.bot). Get at [bankr.bot/api](https://bankr.bot/api), enable **LLM Gateway**, top up at [bankr.bot/llm?tab=credits](https://bankr.bot/llm?tab=credits) |
+| `LLM_MODEL` | optional | Model to use via bankr gateway. Default: `gemini-3-flash`. Options: `gemini-3-flash`, `claude-haiku-3-5`, `claude-sonnet-4-5` |
 | `X_BEARER_TOKEN` | optional | X/Twitter API v2 Bearer Token — improves scraping quality |
 | `YOUTUBE_API_KEY` | optional | YouTube Data API v3 key — used by `scrape-youtube.ts` |
 | `DEBUG` | optional | Set `true` for verbose script output |
