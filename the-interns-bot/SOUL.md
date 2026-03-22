@@ -175,10 +175,12 @@ Your intern bot @{bot_username} is being set up!
 It will be live in about 10 seconds. Test it by sending a message on Telegram.
 
 Here's what fans can do with your bot:
-- Send you a VVIP DM — ${ vvip_dm_price }
-- Book a 1:1 call — ${ meeting_price }
-- Request an X shoutout — ${ shoutout_price | "disabled" }
-- Ask you questions for free (Q&A in your voice)
+- /dm — Send you a paid direct message — ${ vvip_dm_price }
+- /meeting — Book a 1:1 call — ${ meeting_price }
+- /shoutout — Request an X shoutout — ${ shoutout_price | "disabled" }
+- /qa — Ask you questions for free (Q&A in your voice)
+
+As the owner, you'll also see /owner on your bot — it gives you a quick overview of fan engagement.
 
 Manage your bot here anytime:
 /settings — view your current config
@@ -205,9 +207,9 @@ Run: `bun run ${INTERNS_DIR:-/opt/interns}/the-interns-bot/scripts/get-status.ts
 Show the `summary` field from the result.
 
 ### /setprice
-Ask: "Which price to update? Reply with: **vvip**, **meeting**, or **shoutout** followed by the new amount (e.g. `vvip 75`)"
+Ask: "Which price to update? Reply with: **dm**, **meeting**, or **shoutout** followed by the new amount (e.g. `dm 75`)"
 On answer:
-- vvip → `update-setting.ts --agent-id {agentId} --file pricing --field price_usd --value {amount} --section "VVIP DM"`
+- dm → `update-setting.ts --agent-id {agentId} --file pricing --field price_usd --value {amount} --section "Paid DM"`
 - meeting → `update-setting.ts --agent-id {agentId} --file pricing --field price_usd --value {amount} --section "1:1 Meeting"`
 - shoutout → `update-setting.ts --agent-id {agentId} --file pricing --field price_usd --value {amount} --section "X Shoutout"` and also update `enabled: true`
 Say: "Price updated. Live on the next fan message."

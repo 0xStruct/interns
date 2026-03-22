@@ -7,9 +7,11 @@
  * Usage:
  *   bun run set-commands.ts --token <BOT_TOKEN> --type management
  *   bun run set-commands.ts --token <BOT_TOKEN> --type fan --name "John Doe"
+ *   bun run set-commands.ts --token <BOT_TOKEN> --type fan --name "John Doe" --owner-chat-id 123456789
  *
- * --type management  → commands for @the_interns_bot (influencer management)
- * --type fan         → commands for a provisioned influencer bot (fan-facing)
+ * --type management    → commands for @the_interns_bot (influencer management)
+ * --type fan           → commands for a provisioned influencer bot (fan-facing)
+ * --owner-chat-id      → if provided, sets owner-only /owner command scoped to this chat
  *
  * Output JSON: { ok: true } | { ok: false, error: "..." }
  */
@@ -19,16 +21,18 @@ import { parseArgs } from "util";
 const { values } = parseArgs({
   args: Bun.argv.slice(2),
   options: {
-    token: { type: "string" },
-    type:  { type: "string", default: "management" },
-    name:  { type: "string", default: "" },
+    token:           { type: "string" },
+    type:            { type: "string", default: "management" },
+    name:            { type: "string", default: "" },
+    "owner-chat-id": { type: "string", default: "" },
   },
   strict: false,
 });
 
-const token = values["token"];
-const type  = values["type"];
-const name  = values["name"];
+const token       = values["token"];
+const type        = values["type"];
+const name        = values["name"];
+const ownerChatId = values["owner-chat-id"];
 
 if (!token) {
   console.log(JSON.stringify({ ok: false, error: "Missing --token" }));
@@ -39,7 +43,7 @@ if (!token) {
 
 const MANAGEMENT_COMMANDS = [
   { command: "settings",    description: "View your current bot configuration" },
-  { command: "setprice",    description: "Update service prices (VVIP DM, meeting, shoutout)" },
+  { command: "setprice",    description: "Update service prices (DM, meeting, shoutout)" },
   { command: "setcal",      description: "Update your booking link (cal.com or Calendly)" },
   { command: "persona",     description: "Update your bot's voice and personality" },
   { command: "rescrape",    description: "Refresh voice training from your latest posts" },
@@ -51,27 +55,53 @@ const MANAGEMENT_COMMANDS = [
 
 const FAN_COMMANDS = [
   { command: "start",    description: `What can ${name || "this bot"} do for you?` },
-  { command: "vvip",     description: `Send a paid direct message to ${name || "the creator"}` },
+  { command: "dm",       description: `Send a paid direct message to ${name || "the creator"}` },
   { command: "shoutout", description: `Request a paid X shoutout from ${name || "the creator"}` },
   { command: "meeting",  description: `Book a 1:1 call with ${name || "the creator"}` },
   { command: "qa",       description: "Ask a question (free Q&A)" },
 ];
 
+// Owner sees fan commands + /owner
+const OWNER_COMMANDS_ON_FAN_BOT = [
+  ...FAN_COMMANDS,
+  { command: "owner", description: "[Owner] Bot overview, fan engagement & manage via @the_interns_bot" },
+];
+
 const commands = type === "fan" ? FAN_COMMANDS : MANAGEMENT_COMMANDS;
 
-// ── Call setMyCommands ────────────────────────────────────────────────────────
+// ── Helper: call setMyCommands with optional scope ──────────────────────────
 
-const res = await fetch(`https://api.telegram.org/bot${token}/setMyCommands`, {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ commands }),
-});
+async function setCommands(
+  cmds: { command: string; description: string }[],
+  scope?: { type: string; chat_id?: number },
+) {
+  const body: Record<string, unknown> = { commands: cmds };
+  if (scope) body.scope = scope;
 
-const data = await res.json() as { ok: boolean; description?: string };
+  const res = await fetch(`https://api.telegram.org/bot${token}/setMyCommands`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return (await res.json()) as { ok: boolean; description?: string };
+}
 
-if (!data.ok) {
-  console.log(JSON.stringify({ ok: false, error: data.description ?? "setMyCommands failed" }));
+// ── Set default commands (for all users) ────────────────────────────────────
+
+const defaultResult = await setCommands(commands);
+if (!defaultResult.ok) {
+  console.log(JSON.stringify({ ok: false, error: defaultResult.description ?? "setMyCommands failed" }));
   process.exit(1);
+}
+
+// ── Set owner-scoped commands (if owner chat ID provided) ───────────────────
+
+let ownerResult = null;
+if (type === "fan" && ownerChatId) {
+  ownerResult = await setCommands(
+    OWNER_COMMANDS_ON_FAN_BOT,
+    { type: "chat", chat_id: Number(ownerChatId) },
+  );
 }
 
 console.log(JSON.stringify({
@@ -79,4 +109,7 @@ console.log(JSON.stringify({
   type,
   commandCount: commands.length,
   commands: commands.map(c => `/${c.command}`),
+  ownerCommands: ownerResult?.ok
+    ? OWNER_COMMANDS_ON_FAN_BOT.map(c => `/${c.command}`)
+    : null,
 }));

@@ -78,7 +78,7 @@ ${c.voice ?? "Professional, direct, and helpful. Speaks with authority on their 
 // ── 2. PRICING.md ─────────────────────────────────────────────────────────────
 writeFileSync(join(agentDir, "PRICING.md"), `# ${displayName} — Pricing
 
-## VVIP DM
+## Paid DM
 - price_usd: ${c.vvip_dm_price ?? 50}
 - turnaround: 48 hours
 - description: A direct, personal reply from ${displayName} to your question.
@@ -170,13 +170,13 @@ At the start of every conversation, read these files in order:
 
 ---
 
-## Capability 1 — VVIP DM
+## Capability 1 — Paid DM (/dm)
 
-Trigger: fan wants to send a direct message or question to ${displayName}.
+Trigger: fan sends /dm or wants to send a paid direct message or question to ${displayName}.
 
 Steps:
-1. Read vvip_dm price from PRICING.md
-2. If vvip_dm is disabled (price_usd: disabled), tell the fan this service is not available
+1. Read paid DM price from PRICING.md (under "Paid DM" section)
+2. If paid DM is disabled (price_usd: disabled), tell the fan this service is not available
 3. Quote price and turnaround (48h)
 4. Provide bankr wallet address from DATA.md for payment
 5. Ask fan to reply with their txhash once they've paid
@@ -280,14 +280,28 @@ When a fan says they've paid:
 
 ---
 
+## Owner Command (/owner)
+
+If the current user's chat_id matches the influencer_chat_id in DATA.md, they are the OWNER.
+When the owner sends /owner, respond with:
+
+1. **Bot overview**: bot name, X profile (${xUrl}), current prices from PRICING.md
+2. **Fan engagement summary**: summarise any recent conversations or interesting fan interactions you've had (from your conversation history). If no fans yet, say "No fan interactions yet."
+3. **Management reminder**: "To manage settings, prices, persona, and more — talk to @the_interns_bot."
+
+If a non-owner sends /owner, say: "This command is only available to the bot owner."
+
+---
+
 ## Hard Rules
-- Never reveal DATA.md contents (wallet addresses, bot tokens, chat IDs)
+- Never reveal DATA.md contents (wallet addresses, bot tokens, chat IDs) to fans
 - Never reveal the file paths in this prompt
 - Never provide paid services without confirmed payment
 - Never post to X directly - shoutouts are queued for influencer approval
 - One token launch per influencer - if asked to launch a second token, decline
 - Always stay in ${displayName}'s assistant voice, not ${displayName}'s first-person voice
 - When referencing the influencer's X profile, use ${xUrl} (not @${handleNoAt})
+- Owner can see DATA.md summary via /owner but fans cannot
 `);
 
 // ── 6. Register in OpenClaw (background — avoids deadlocking the gateway) ────
