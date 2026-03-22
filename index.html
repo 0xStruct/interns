@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>interns.bot — AI Interns for Creators</title>
+  <meta name="description" content="Every creator deserves a tireless AI intern. Launch your own Telegram bot in minutes — handle fan DMs, shoutouts, bookings, and Q&A, all in your voice." />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0f;
+      --bg2: #111118;
+      --bg3: #18181f;
+      --border: #2a2a38;
+      --text: #e8e8f0;
+      --muted: #888899;
+      --accent: #6c63ff;
+      --accent2: #00d4aa;
+      --accent3: #ff6b6b;
+      --gold: #f59e0b;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* NAV */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 1rem 2rem;
+      background: rgba(10,10,15,0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-logo {
+      font-size: 1.2rem; font-weight: 700; color: var(--text);
+      text-decoration: none; letter-spacing: -0.02em;
+    }
+    .nav-logo span { color: var(--accent); }
+    .nav-links { display: flex; gap: 1.5rem; }
+    .nav-links a {
+      color: var(--muted); text-decoration: none; font-size: 0.9rem;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--text); }
+    .nav-cta {
+      background: var(--accent); color: #fff; border: none;
+      padding: 0.5rem 1.25rem; border-radius: 8px;
+      font-size: 0.9rem; font-weight: 600; cursor: pointer;
+      text-decoration: none; transition: opacity 0.2s;
+    }
+    .nav-cta:hover { opacity: 0.85; }
+
+    /* HERO */
+    .hero {
+      min-height: 100vh;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      text-align: center;
+      padding: 8rem 2rem 4rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(108,99,255,0.15) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      background: rgba(108,99,255,0.12); border: 1px solid rgba(108,99,255,0.3);
+      color: #a99fff; padding: 0.35rem 1rem; border-radius: 100px;
+      font-size: 0.8rem; font-weight: 600; letter-spacing: 0.05em;
+      text-transform: uppercase; margin-bottom: 1.5rem;
+    }
+    .hero-badge::before { content: '✦'; font-size: 0.7rem; }
+    h1 {
+      font-size: clamp(2.5rem, 6vw, 4.5rem);
+      font-weight: 800; line-height: 1.1;
+      letter-spacing: -0.03em;
+      max-width: 800px;
+      margin-bottom: 1.5rem;
+    }
+    h1 em { font-style: normal; color: var(--accent); }
+    .hero-sub {
+      font-size: clamp(1rem, 2vw, 1.25rem);
+      color: var(--muted); max-width: 560px;
+      margin-bottom: 3rem; line-height: 1.7;
+    }
+    .hero-ctas {
+      display: flex; flex-wrap: wrap; gap: 1rem;
+      justify-content: center; margin-bottom: 4rem;
+    }
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      background: var(--accent); color: #fff;
+      padding: 0.85rem 1.75rem; border-radius: 10px;
+      font-weight: 700; font-size: 1rem;
+      text-decoration: none; transition: all 0.2s;
+      box-shadow: 0 0 24px rgba(108,99,255,0.35);
+    }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 0 32px rgba(108,99,255,0.5); }
+    .btn-secondary {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      background: transparent; color: var(--text);
+      border: 1px solid var(--border);
+      padding: 0.85rem 1.75rem; border-radius: 10px;
+      font-weight: 600; font-size: 1rem;
+      text-decoration: none; transition: all 0.2s;
+    }
+    .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-teal {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      background: rgba(0,212,170,0.12); color: var(--accent2);
+      border: 1px solid rgba(0,212,170,0.3);
+      padding: 0.85rem 1.75rem; border-radius: 10px;
+      font-weight: 600; font-size: 1rem;
+      text-decoration: none; transition: all 0.2s;
+    }
+    .btn-teal:hover { background: rgba(0,212,170,0.2); }
+
+    .hero-stats {
+      display: flex; flex-wrap: wrap; gap: 2rem;
+      justify-content: center;
+    }
+    .stat {
+      text-align: center;
+    }
+    .stat-num {
+      font-size: 1.75rem; font-weight: 800; color: var(--text);
+      letter-spacing: -0.03em;
+    }
+    .stat-num span { color: var(--accent); }
+    .stat-label { font-size: 0.8rem; color: var(--muted); margin-top: 0.15rem; }
+
+    /* SECTION SHARED */
+    section { padding: 5rem 2rem; }
+    .container { max-width: 1100px; margin: 0 auto; }
+    .section-label {
+      font-size: 0.75rem; font-weight: 700; letter-spacing: 0.1em;
+      text-transform: uppercase; color: var(--accent);
+      margin-bottom: 0.75rem;
+    }
+    h2 {
+      font-size: clamp(1.75rem, 3.5vw, 2.75rem);
+      font-weight: 800; letter-spacing: -0.03em;
+      line-height: 1.15; margin-bottom: 1rem;
+    }
+    h2 em { font-style: normal; color: var(--accent2); }
+    .section-sub {
+      color: var(--muted); font-size: 1.05rem;
+      max-width: 560px; line-height: 1.7;
+      margin-bottom: 3rem;
+    }
+
+    /* HOW IT WORKS */
+    .how-section { background: var(--bg2); }
+    .steps {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1.5rem;
+    }
+    .step {
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 16px; padding: 1.75rem;
+      position: relative; overflow: hidden;
+      transition: border-color 0.2s;
+    }
+    .step:hover { border-color: var(--accent); }
+    .step-num {
+      font-size: 3rem; font-weight: 900; line-height: 1;
+      color: rgba(108,99,255,0.15);
+      position: absolute; top: 1rem; right: 1.25rem;
+    }
+    .step-icon {
+      font-size: 1.75rem; margin-bottom: 1rem;
+    }
+    .step h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .step p { font-size: 0.875rem; color: var(--muted); line-height: 1.6; }
+
+    /* FEATURES */
+    .features-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.25rem;
+    }
+    .feature-card {
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 16px; padding: 1.75rem;
+      transition: all 0.2s;
+    }
+    .feature-card:hover { border-color: var(--accent2); transform: translateY(-2px); }
+    .feature-icon {
+      font-size: 1.5rem; margin-bottom: 1rem;
+      width: 48px; height: 48px;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(0,212,170,0.1); border-radius: 12px;
+    }
+    .feature-card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.4rem; }
+    .feature-card p { font-size: 0.875rem; color: var(--muted); line-height: 1.6; }
+    .feature-card .price-tag {
+      display: inline-block; margin-top: 0.75rem;
+      font-size: 0.75rem; font-weight: 700;
+      color: var(--accent2); background: rgba(0,212,170,0.1);
+      border: 1px solid rgba(0,212,170,0.2);
+      padding: 0.2rem 0.6rem; border-radius: 6px;
+    }
+
+    /* TOKENS SECTION */
+    .tokens-section { background: var(--bg2); }
+    .tokens-inner {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 4rem; align-items: center;
+    }
+    @media (max-width: 768px) { .tokens-inner { grid-template-columns: 1fr; gap: 2rem; } }
+    .flywheel {
+      display: flex; flex-direction: column; gap: 0;
+      position: relative;
+    }
+    .flywheel-item {
+      display: flex; align-items: flex-start; gap: 1rem;
+      padding: 1.25rem; border-radius: 12px;
+      background: var(--bg3); border: 1px solid var(--border);
+      margin-bottom: 0.5rem;
+      transition: border-color 0.2s;
+    }
+    .flywheel-item:hover { border-color: var(--gold); }
+    .flywheel-arrow {
+      text-align: center; color: var(--gold); font-size: 1.2rem;
+      margin: 0.1rem 0; opacity: 0.5;
+    }
+    .flywheel-icon {
+      font-size: 1.25rem; flex-shrink: 0;
+      width: 40px; height: 40px;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(245,158,11,0.1); border-radius: 10px;
+    }
+    .flywheel-item h4 { font-size: 0.9rem; font-weight: 700; margin-bottom: 0.2rem; }
+    .flywheel-item p { font-size: 0.8rem; color: var(--muted); }
+
+    /* PAYMENTS */
+    .payments-inner {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 4rem; align-items: center;
+    }
+    @media (max-width: 768px) { .payments-inner { grid-template-columns: 1fr; gap: 2rem; } }
+    .split-visual {
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 20px; padding: 2rem;
+    }
+    .split-bar {
+      display: flex; border-radius: 100px; overflow: hidden;
+      height: 48px; margin-bottom: 1.5rem;
+    }
+    .split-creator {
+      background: linear-gradient(135deg, var(--accent), #9c6eff);
+      flex: 9; display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 1.1rem; color: #fff;
+    }
+    .split-platform {
+      background: var(--bg3); border-left: 2px solid var(--bg);
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 0.85rem; color: var(--muted);
+    }
+    .split-labels {
+      display: flex; justify-content: space-between;
+      font-size: 0.875rem; margin-bottom: 1.5rem;
+    }
+    .split-labels .creator-label { color: var(--accent); font-weight: 700; }
+    .split-labels .platform-label { color: var(--muted); }
+    .chain-badges {
+      display: flex; flex-wrap: wrap; gap: 0.5rem;
+    }
+    .chain-badge {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      background: var(--bg3); border: 1px solid var(--border);
+      padding: 0.4rem 0.85rem; border-radius: 8px;
+      font-size: 0.8rem; font-weight: 600; color: var(--muted);
+    }
+
+    /* DEMO BOTS */
+    .demo-section { background: var(--bg2); }
+    .demo-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+    }
+    @media (max-width: 700px) { .demo-grid { grid-template-columns: 1fr; } }
+    .demo-card {
+      border-radius: 20px; padding: 2rem;
+      border: 1px solid var(--border);
+      transition: all 0.2s;
+    }
+    .demo-card:hover { transform: translateY(-3px); }
+    .demo-card.creator-card {
+      background: linear-gradient(135deg, rgba(108,99,255,0.12), rgba(108,99,255,0.04));
+      border-color: rgba(108,99,255,0.3);
+    }
+    .demo-card.fan-card {
+      background: linear-gradient(135deg, rgba(0,212,170,0.08), rgba(0,212,170,0.02));
+      border-color: rgba(0,212,170,0.25);
+    }
+    .demo-card .card-tag {
+      font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em;
+      text-transform: uppercase; margin-bottom: 1rem;
+      display: inline-block; padding: 0.2rem 0.6rem; border-radius: 6px;
+    }
+    .creator-card .card-tag { color: var(--accent); background: rgba(108,99,255,0.12); }
+    .fan-card .card-tag { color: var(--accent2); background: rgba(0,212,170,0.1); }
+    .demo-card h3 {
+      font-size: 1.3rem; font-weight: 800; margin-bottom: 0.5rem;
+    }
+    .demo-card p { color: var(--muted); font-size: 0.9rem; margin-bottom: 1.5rem; line-height: 1.6; }
+    .demo-bots { display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1.5rem; }
+    .bot-link {
+      display: flex; align-items: center; gap: 0.75rem;
+      background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+      border-radius: 12px; padding: 0.75rem 1rem;
+      text-decoration: none; color: var(--text);
+      font-size: 0.875rem; font-weight: 600;
+      transition: all 0.2s;
+    }
+    .bot-link:hover { background: rgba(255,255,255,0.07); border-color: var(--accent2); }
+    .bot-link .bot-avatar {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.9rem; flex-shrink: 0;
+    }
+    .bot-link .tg-icon { margin-left: auto; color: var(--muted); font-size: 0.75rem; }
+
+    /* STACK */
+    .stack-pills {
+      display: flex; flex-wrap: wrap; gap: 0.75rem;
+      margin-top: 2rem;
+    }
+    .stack-pill {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      background: var(--bg2); border: 1px solid var(--border);
+      padding: 0.5rem 1rem; border-radius: 100px;
+      font-size: 0.85rem; color: var(--muted);
+    }
+    .stack-pill .dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--accent2); flex-shrink: 0;
+    }
+
+    /* CTA SECTION */
+    .cta-section {
+      text-align: center;
+      background: radial-gradient(ellipse 80% 60% at 50% 100%, rgba(108,99,255,0.12) 0%, transparent 70%);
+    }
+    .cta-section h2 { margin-bottom: 1rem; }
+    .cta-section p { color: var(--muted); margin-bottom: 2.5rem; font-size: 1.05rem; }
+    .cta-buttons { display: flex; flex-wrap: wrap; gap: 1rem; justify-content: center; }
+
+    /* FOOTER */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 2rem; text-align: center;
+      color: var(--muted); font-size: 0.85rem;
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+
+    /* DIVIDER */
+    .divider {
+      height: 1px; background: var(--border);
+      max-width: 1100px; margin: 0 auto;
+    }
+
+    /* TELEGRAM ICON */
+    .tg { display: inline-block; }
+    .tg::before { content: '✈'; }
+
+    @media (max-width: 600px) {
+      nav .nav-links { display: none; }
+      .hero-ctas { flex-direction: column; align-items: center; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a href="/" class="nav-logo">interns<span>.bot</span></a>
+  <div class="nav-links">
+    <a href="#how-it-works">How it works</a>
+    <a href="#features">Features</a>
+    <a href="#tokens">Tokens</a>
+    <a href="#try">Try it</a>
+  </div>
+  <a href="https://t.me/the_interns_bot" target="_blank" class="nav-cta">Launch your intern →</a>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-badge">Built on Base · Powered by Bankr</div>
+  <h1>Every creator deserves a<br/><em>tireless AI intern</em></h1>
+  <p class="hero-sub">
+    Launch your own Telegram bot in minutes. It handles fan DMs, shoutouts, bookings, and Q&A — 24/7, in your voice, with onchain payments direct to your wallet.
+  </p>
+  <div class="hero-ctas">
+    <a href="https://t.me/the_interns_bot" target="_blank" class="btn-primary">
+      🤖 Launch your intern bot
+    </a>
+    <a href="#try" class="btn-secondary">
+      See it in action ↓
+    </a>
+  </div>
+  <div class="hero-stats">
+    <div class="stat">
+      <div class="stat-num"><span>90</span>%</div>
+      <div class="stat-label">revenue to creator</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">&lt;<span>5</span>min</div>
+      <div class="stat-label">to go live</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num"><span>0</span></div>
+      <div class="stat-label">code required</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num"><span>24</span>/7</div>
+      <div class="stat-label">always on</div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- HOW IT WORKS -->
+<section class="how-section" id="how-it-works">
+  <div class="container">
+    <div class="section-label">For Creators</div>
+    <h2>From zero to live intern bot<br/><em>in minutes</em></h2>
+    <p class="section-sub">No code. No DevOps. Just a conversation with @the_interns_bot — and your AI intern is live.</p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-icon">💬</div>
+        <h3>Chat to onboard</h3>
+        <p>Talk to <strong>@the_interns_bot</strong> on Telegram. Share your name, handle, persona, and pricing through a natural conversation.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-icon">⚙️</div>
+        <h3>Auto-provisioned</h3>
+        <p>Your personal intern bot is deployed instantly — custom persona, slash commands, and wallet wired to Base.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-icon">🚀</div>
+        <h3>Share with fans</h3>
+        <p>Hand out your bot's Telegram link. Your intern handles everything — you get paid while you sleep.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-icon">🪙</div>
+        <h3>Launch your token</h3>
+        <p>Optionally launch a creator token on bankr.bot. Fans trade it, you earn fees — a new passive revenue stream.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- FEATURES -->
+<section id="features">
+  <div class="container">
+    <div class="section-label">Fan Experiences</div>
+    <h2>Four ways fans connect.<br/><em>Four revenue streams.</em></h2>
+    <p class="section-sub">Your intern bot handles every fan interaction — automatically, moderated, and paid — so you don't have to.</p>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">💌</div>
+        <h3>Paid DMs</h3>
+        <p>Fans pay to send you a personal message. The intern screens content for appropriateness before collecting payment, then queues it for you.</p>
+        <span class="price-tag">You set the price</span>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📢</div>
+        <h3>X Shoutouts</h3>
+        <p>Fans pay to be mentioned in a post on your X account. The intern reviews the request, screens the text, and queues it for your approval.</p>
+        <span class="price-tag">You set the price</span>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📅</div>
+        <h3>Paid Bookings</h3>
+        <p>Fans pay to book a 1-on-1 call. Each payment generates a unique one-time booking link — no sharing, no gatecrasher.</p>
+        <span class="price-tag">You set the price</span>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🤖</div>
+        <h3>Free Q&A</h3>
+        <p>Fans ask anything and your intern answers in your authentic voice — your interests, opinions, and style. Builds loyalty and keeps fans engaged.</p>
+        <span class="price-tag">Always free</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- TOKENS / FLYWHEEL -->
+<section class="tokens-section" id="tokens">
+  <div class="container">
+    <div class="tokens-inner">
+      <div>
+        <div class="section-label">Creator Tokens</div>
+        <h2>Turn your fans into <em>stakeholders</em></h2>
+        <p class="section-sub">
+          Launch your creator token on bankr.bot. Fans who hold and trade your token earn perks and exclusive access — while you earn trading fees.
+        </p>
+        <p style="color: var(--muted); font-size: 0.9rem; line-height: 1.7;">
+          It's not just monetization — it's alignment. Token holders have skin in the game. They promote you, bring in new fans, and drive the flywheel that sustains your creator career.
+        </p>
+      </div>
+      <div class="flywheel">
+        <div class="flywheel-item">
+          <div class="flywheel-icon">👥</div>
+          <div>
+            <h4>Fans engage via intern bot</h4>
+            <p>DMs, shoutouts, bookings, Q&A — revenue flows directly to your wallet</p>
+          </div>
+        </div>
+        <div class="flywheel-arrow">↓</div>
+        <div class="flywheel-item">
+          <div class="flywheel-icon">🪙</div>
+          <div>
+            <h4>Fans buy creator tokens</h4>
+            <p>Token holders unlock deeper access and exclusive perks from your intern</p>
+          </div>
+        </div>
+        <div class="flywheel-arrow">↓</div>
+        <div class="flywheel-item">
+          <div class="flywheel-icon">📈</div>
+          <div>
+            <h4>Trading volume grows</h4>
+            <p>You earn a share of every trade — passive income that scales with your community</p>
+          </div>
+        </div>
+        <div class="flywheel-arrow">↓</div>
+        <div class="flywheel-item">
+          <div class="flywheel-icon">🔄</div>
+          <div>
+            <h4>You invest in more value</h4>
+            <p>Better content, exclusive offers, stronger community — the flywheel keeps spinning</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- PAYMENTS -->
+<section>
+  <div class="container">
+    <div class="payments-inner">
+      <div>
+        <div class="section-label">Payments</div>
+        <h2>Instant. Onchain.<br/><em>Non-custodial.</em></h2>
+        <p class="section-sub">
+          Every payment settles on Base in seconds. 90% lands in your wallet automatically — no invoicing, no waiting, no middleman.
+        </p>
+        <div class="stack-pills">
+          <span class="stack-pill"><span class="dot"></span>Base blockchain</span>
+          <span class="stack-pill"><span class="dot"></span>bankr.bot</span>
+          <span class="stack-pill"><span class="dot"></span>Non-custodial</span>
+          <span class="stack-pill"><span class="dot"></span>Near-zero fees</span>
+          <span class="stack-pill"><span class="dot"></span>Instant settlement</span>
+        </div>
+      </div>
+      <div class="split-visual">
+        <div style="font-size: 0.8rem; color: var(--muted); margin-bottom: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Revenue split per transaction</div>
+        <div class="split-bar">
+          <div class="split-creator">90%</div>
+          <div class="split-platform">10%</div>
+        </div>
+        <div class="split-labels">
+          <span class="creator-label">→ Your wallet, instantly</span>
+          <span class="platform-label">Platform fee</span>
+        </div>
+        <div style="border-top: 1px solid var(--border); padding-top: 1.25rem;">
+          <div style="font-size: 0.8rem; color: var(--muted); margin-bottom: 0.75rem; font-weight: 600;">Powered by</div>
+          <div class="chain-badges">
+            <span class="chain-badge">🔵 Base</span>
+            <span class="chain-badge">🏦 bankr.bot</span>
+            <span class="chain-badge">✨ Gemini Flash</span>
+            <span class="chain-badge">🤖 OpenClaw</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- TRY IT -->
+<section class="demo-section" id="try">
+  <div class="container">
+    <div style="text-align: center; margin-bottom: 3rem;">
+      <div class="section-label">Live Now</div>
+      <h2>See it in action</h2>
+      <p class="section-sub" style="margin: 0 auto;">Whether you're a creator ready to launch or a fan curious to explore — jump in and try it live on Telegram.</p>
+    </div>
+    <div class="demo-grid">
+      <div class="demo-card creator-card">
+        <div class="card-tag">For Creators</div>
+        <h3>Launch your intern bot</h3>
+        <p>Chat with the management bot and go from idea to live intern in under 5 minutes. No code, no setup — just a conversation.</p>
+        <div class="demo-bots">
+          <a href="https://t.me/the_interns_bot" target="_blank" class="bot-link">
+            <div class="bot-avatar">🤖</div>
+            <div>
+              <div>@the_interns_bot</div>
+              <div style="font-size: 0.75rem; color: var(--muted); font-weight: 400;">Start your onboarding →</div>
+            </div>
+            <span class="tg-icon">Telegram ↗</span>
+          </a>
+        </div>
+        <a href="https://t.me/the_interns_bot" target="_blank" class="btn-primary" style="width: 100%; justify-content: center;">
+          🚀 Launch my intern bot
+        </a>
+      </div>
+      <div class="demo-card fan-card">
+        <div class="card-tag">For Fans</div>
+        <h3>Try a live intern bot</h3>
+        <p>Experience what fans get — ask questions, explore paid DMs and shoutouts, and see what your favourite creators could offer.</p>
+        <div class="demo-bots">
+          <a href="https://t.me/deployer_intern_bot" target="_blank" class="bot-link">
+            <div class="bot-avatar">🧑‍💻</div>
+            <div>
+              <div>@deployer_intern_bot</div>
+              <div style="font-size: 0.75rem; color: var(--muted); font-weight: 400;">0xDeployer's intern</div>
+            </div>
+            <span class="tg-icon">Telegram ↗</span>
+          </a>
+          <a href="https://t.me/austingriffith_intern_bot" target="_blank" class="bot-link">
+            <div class="bot-avatar">🏗️</div>
+            <div>
+              <div>@austingriffith_intern_bot</div>
+              <div style="font-size: 0.75rem; color: var(--muted); font-weight: 400;">Austin Griffith's intern</div>
+            </div>
+            <span class="tg-icon">Telegram ↗</span>
+          </a>
+        </div>
+        <a href="https://t.me/deployer_intern_bot" target="_blank" class="btn-teal" style="width: 100%; justify-content: center;">
+          ✨ Try a fan-facing bot
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- FINAL CTA -->
+<section class="cta-section">
+  <div class="container">
+    <div class="section-label">Get Started</div>
+    <h2>Your audience is waiting.<br/>Your intern is ready.</h2>
+    <p>Join creators, artists, and thought leaders launching their AI intern bots today.<br/>It takes less time than writing a tweet.</p>
+    <div class="cta-buttons">
+      <a href="https://t.me/the_interns_bot" target="_blank" class="btn-primary">
+        🤖 Launch your intern bot
+      </a>
+      <a href="https://t.me/deployer_intern_bot" target="_blank" class="btn-teal">
+        ✨ See a live example
+      </a>
+      <a href="https://github.com/0xstruct/interns" target="_blank" class="btn-secondary">
+        ⭐ View on GitHub
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <p>interns.bot · Built on <a href="https://base.org" target="_blank">Base</a> · Powered by <a href="https://bankr.bot" target="_blank">bankr.bot</a> · <a href="https://github.com/0xstruct/interns" target="_blank">GitHub</a></p>
+</footer>
+
+</body>
+</html>
