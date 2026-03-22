@@ -325,39 +325,74 @@ No restart required — OpenClaw picks up new agents immediately.
 
 ## Re-provisioning a Fan-Facing Bot
 
-If you update `provision-agent.ts` (e.g. changed SOUL.md template, pricing format, or slash commands), re-provision existing bots:
+If you update `provision-agent.ts` (e.g. changed SOUL.md template, pricing format, or slash commands), re-provision existing bots.
+
+### Step 1 — Find the agentId and state file
 
 ```bash
 cd /opt/interns
 
-# Re-provision a specific bot (regenerates SOUL.md, PERSONA.md, PRICING.md, etc.)
-STATE_FILE=$(ls state/onboarding/*.json | head -1)   # or the specific influencer's state file
+# List all provisioned influencers (each directory = one agentId)
+ls influencers/
+
+# Example output:
+#   0xdeployer-intern/
+#   johndoe-intern/
+
+# agentId is the directory name, e.g. "0xdeployer-intern"
+```
+
+Each state file in `state/onboarding/` maps to one influencer. To see which file belongs to which influencer:
+
+```bash
+# List all state files with the influencer handle/name inside them
+for f in state/onboarding/*.json; do
+  handle=$(python3 -c "import json; d=json.load(open('$f')); print(d.get('collected',{}).get('handle','?'))" 2>/dev/null)
+  agent=$(python3 -c "import json; d=json.load(open('$f')); print(d.get('collected',{}).get('agentId','?'))" 2>/dev/null)
+  echo "$f  →  handle=$handle  agentId=$agent"
+done
+
+# Example output:
+#   state/onboarding/a3f1b2c4....json  →  handle=@0xdeployer  agentId=0xdeployer-intern
+#   state/onboarding/9d8e7f6a....json  →  handle=@johndoe     agentId=johndoe-intern
+```
+
+### Step 2 — Re-provision
+
+```bash
+cd /opt/interns
+
+# Set your variables (replace with real values from Step 1)
+AGENT_ID="0xdeployer-intern"
+STATE_FILE="state/onboarding/a3f1b2c4d5e6f7a8b9c0d1e2f3a4b5c6.json"   # from Step 1
+
+# Re-provision (regenerates SOUL.md, PERSONA.md, PRICING.md, DATA.md, CONTEXT.md, SKILL.md)
 bun run the-interns-bot/scripts/provision-agent.ts \
-  --agent-id {agentId} \
+  --agent-id "$AGENT_ID" \
   --state-file "$STATE_FILE"
 
 # Clear sessions so the bot picks up the new SOUL.md
-rm -f ~/.openclaw/agents/{agentId}/sessions/*.jsonl
-rm -f ~/.openclaw/agents/{agentId}/sessions/sessions.json
+rm -f ~/.openclaw/agents/"$AGENT_ID"/sessions/*.jsonl
+rm -f ~/.openclaw/agents/"$AGENT_ID"/sessions/sessions.json
 
-# Wait for background registration (15s) then restart
+# Wait ~15s for background OpenClaw registration, then restart
 sleep 20 && openclaw gateway restart
 ```
 
-To re-provision **all** fan-facing bots after a template change:
+### Re-provision all bots at once (after a template change)
 
 ```bash
 cd /opt/interns
 for state_file in state/onboarding/*.json; do
-  agent_id=$(python3 -c "import json; d=json.load(open('$state_file')); print(d.get('collected',{}).get('agentId', d.get('agentId','')))" 2>/dev/null)
-  if [ -n "$agent_id" ]; then
+  agent_id=$(python3 -c "import json; d=json.load(open('$state_file')); print(d.get('collected',{}).get('agentId', ''))" 2>/dev/null)
+  if [ -n "$agent_id" ] && [ -d "influencers/$agent_id" ]; then
     echo "Re-provisioning $agent_id..."
     bun run the-interns-bot/scripts/provision-agent.ts \
       --agent-id "$agent_id" --state-file "$state_file"
   fi
 done
 
-# Clear all sessions and restart
+# Clear all fan-bot sessions and restart
 rm -f ~/.openclaw/agents/*/sessions/*.jsonl ~/.openclaw/agents/*/sessions/sessions.json
 sleep 20 && openclaw gateway restart
 ```
@@ -379,28 +414,62 @@ bun run the-interns-bot/scripts/set-commands.ts \
 
 ### Fan-facing bot (per influencer)
 
-```bash
-# Get bot token and owner chat ID from the influencer's DATA.md
-BOT_TOKEN=$(grep 'bot_token:' /opt/interns/influencers/{agentId}/DATA.md | awk '{print $2}')
-OWNER_CHAT_ID=$(grep 'influencer_chat_id:' /opt/interns/influencers/{agentId}/DATA.md | awk '{print $2}')
+**Step 1 — Look up the required values from the influencer's files:**
 
+```bash
+cd /opt/interns
+
+# Set this to the influencer's agentId (directory name under influencers/)
+AGENT_ID="0xdeployer-intern"
+
+# Bot token — from DATA.md
+BOT_TOKEN=$(grep 'bot_token:' influencers/"$AGENT_ID"/DATA.md | awk '{print $2}')
+echo "BOT_TOKEN: $BOT_TOKEN"
+
+# Owner's Telegram chat ID — from DATA.md
+OWNER_CHAT_ID=$(grep 'influencer_chat_id:' influencers/"$AGENT_ID"/DATA.md | awk '{print $2}')
+echo "OWNER_CHAT_ID: $OWNER_CHAT_ID"
+
+# Influencer's full name — from PERSONA.md (line: "Full name: ...")
+INFLUENCER_NAME=$(grep 'Full name:' influencers/"$AGENT_ID"/PERSONA.md | sed 's/.*Full name: //')
+echo "INFLUENCER_NAME: $INFLUENCER_NAME"
+
+# X handle without @ — from PERSONA.md (line: "X profile: x.com/...")
+HANDLE=$(grep 'X profile:' influencers/"$AGENT_ID"/PERSONA.md | sed 's|.*x.com/||')
+echo "HANDLE: $HANDLE"
+```
+
+**Step 2 — Register the commands:**
+
+```bash
 bun run the-interns-bot/scripts/set-commands.ts \
   --token "$BOT_TOKEN" \
   --type fan \
-  --name "Influencer Name" \
-  --handle "influencer_handle" \
+  --name "$INFLUENCER_NAME" \
+  --handle "$HANDLE" \
   --owner-chat-id "$OWNER_CHAT_ID"
+```
+
+Or as a one-liner with all values inlined (useful when you already know them):
+
+```bash
+bun run the-interns-bot/scripts/set-commands.ts \
+  --token "7123456789:AAG..." \
+  --type fan \
+  --name "0xDeployer" \
+  --handle "0xDeployer" \
+  --owner-chat-id "987654321"
 ```
 
 **Options for `set-commands.ts`:**
 
-| Flag | Description |
-|---|---|
-| `--token` | Telegram bot token (required) |
-| `--type` | `management` or `fan` |
-| `--name` | Influencer display name (used in command descriptions) |
-| `--handle` | X handle without `@` (appended as "Name (handle)" in descriptions) |
-| `--owner-chat-id` | Telegram chat ID of the bot owner — enables `/owner` command scoped to them |
+| Flag | Where to find it | Description |
+|---|---|---|
+| `--token` | `influencers/{agentId}/DATA.md` → `bot_token:` | Telegram bot token (required) |
+| `--type` | — | `management` or `fan` |
+| `--name` | `influencers/{agentId}/PERSONA.md` → `Full name:` | Influencer display name |
+| `--handle` | `influencers/{agentId}/PERSONA.md` → `X profile: x.com/{handle}` | X handle without `@` |
+| `--owner-chat-id` | `influencers/{agentId}/DATA.md` → `influencer_chat_id:` | Telegram chat ID of the bot owner |
 
 **Fan commands** (visible to everyone): `/start`, `/dm`, `/shoutout`, `/meeting`, `/qa`
 
