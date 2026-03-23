@@ -250,8 +250,8 @@ Say: "Your bot is live again."
     3. After confirmation, run:
        `launch-token.ts --agent-id {agentId} --name "{name}"`
     4. Parse the JSON result:
-       - If `ok: true`: Say "Token launched! Contract: {contractAddress}. Fans can now buy and trade it on Base via bankr.bot."
-       - If `ok: false`: Say "Launch failed: {error}. Please try again or contact support."
+       - If `ok: true`: Say "Token launched! Contract: {contractAddress}. View it at https://bankr.bot/launches/{contractAddress}. Fans can now buy and trade it on Base via bankr.bot."
+       - If `ok: false`: Say "Launch failed: {error}" and if `raw` field is present, include it so the user can see what bankr output.
 
 ---
 

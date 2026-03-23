@@ -49,31 +49,35 @@ try {
   }
 
   // 2. Launch token
-  // --fee "@handle" --fee-type x routes 57% of trading fees to the creator's X handle
-  // -y skips interactive confirmation prompts
-  const cmd = `bankr launch --name "${name}" --fee "@${feeHandle}" --fee-type x -y`;
+  // Pass all optional args explicitly to avoid interactive TTY prompts.
+  // --fee-type x routes 57% of trading fees to the creator's X handle via bankr.
+  // -y skips the final confirmation prompt.
+  const cmd = `bankr launch --name "${name}" --symbol "" --image "" --tweet "" --website "" --fee "@${feeHandle}" --fee-type x -y`;
 
   if (process.env.DEBUG) console.error(`[launch-token] running: ${cmd}`);
 
-  const output = execSync(cmd, { encoding: "utf-8", timeout: 120000 });
+  const raw = execSync(cmd, { encoding: "utf-8", timeout: 120000, env: { ...process.env } });
+
+  // Strip ANSI escape codes so regex can match plaintext
+  const output = raw.replace(/\x1b\[[0-9;]*m/g, "");
 
   if (process.env.DEBUG) console.error(`[launch-token] output: ${output}`);
 
-  // 3. Parse contract address from output
-  // bankr launch outputs lines like: "Contract: 0x..." or "Token address: 0x..."
-  const contractMatch = output.match(/(?:contract|token address|deployed at)[:\s]+0x([0-9a-fA-F]{40})/i)
-    ?? output.match(/0x([0-9a-fA-F]{40})/);
+  // 3. Parse contract address from output.
+  // bankr launch outputs: "Token Address   0x{40hex}"
+  const contractMatch = output.match(/Token\s+Address[\s:]+([0-9a-fA-Fx]{42})/i)
+    ?? output.match(/(0x[0-9a-fA-F]{40})(?![0-9a-fA-F])/);
 
-  const txMatch = output.match(/(?:tx|transaction|hash)[:\s]+0x([0-9a-fA-F]{64})/i)
-    ?? output.match(/0x([0-9a-fA-F]{64})/);
+  const txMatch = output.match(/Transaction[\s:]+([0-9a-fA-Fx]{66})/i)
+    ?? output.match(/(0x[0-9a-fA-F]{64})(?![0-9a-fA-F])/);
 
   if (!contractMatch) {
-    console.log(JSON.stringify({ ok: false, error: "Token may have launched but could not parse contract address from output", raw: output.slice(0, 500) }));
+    console.log(JSON.stringify({ ok: false, error: "Token may have launched but could not parse contract address from output", raw: output.slice(0, 800) }));
     process.exit(1);
   }
 
-  const contractAddress = "0x" + contractMatch[1];
-  const txHash = txMatch ? "0x" + txMatch[1] : undefined;
+  const contractAddress = contractMatch[1].startsWith("0x") ? contractMatch[1] : "0x" + contractMatch[1];
+  const txHash = txMatch ? (txMatch[1].startsWith("0x") ? txMatch[1] : "0x" + txMatch[1]) : undefined;
 
   // 4. Persist to DATA.md via update-setting.ts
   const scriptDir = resolve(import.meta.dir);
