@@ -71,16 +71,29 @@ function readInfluencer(handle: string): Influencer | null {
   const get = (src: string, key: string) =>
     src.match(new RegExp(`${key}:\\s*(.+)`))?.[1]?.trim() ?? "";
 
+  // PERSONA.md: "Full name: Steve55 (steve55)"
+  const name = get(persona, "Full name") || handle;
+
+  // PRICING.md: each section has "- price_usd: X" — extract in order
+  const priceMatches = [...pricing.matchAll(/- price_usd:\s*([\d.]+)/g)];
+  const dmPrice       = parseFloat(priceMatches[0]?.[1] ?? "5");
+  const meetingPrice  = parseFloat(priceMatches[1]?.[1] ?? "50");
+  const shoutoutPrice = parseFloat(priceMatches[2]?.[1] ?? "20");
+
+  // DATA.md: bankr_wallet and booking_link
+  const wallet  = get(data, "- bankr_wallet") || get(data, "bankr_wallet");
+  const calLink = get(data, "- booking_link") || get(data, "booking_link");
+
   return {
     handle,
     agentId,
-    name:     get(persona, "name") || handle,
-    wallet:   get(data, "wallet_address"),
-    calLink:  get(data, "cal_link"),
+    name,
+    wallet,
+    calLink,
     pricing: {
-      dm:       parseFloat(get(pricing, "dm_price")       || "5"),
-      shoutout: parseFloat(get(pricing, "shoutout_price") || "20"),
-      meeting:  parseFloat(get(pricing, "meeting_price")  || "50"),
+      dm:       dmPrice,
+      shoutout: shoutoutPrice,
+      meeting:  meetingPrice,
     },
   };
 }
