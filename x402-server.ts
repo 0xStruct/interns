@@ -116,7 +116,7 @@ function buildRequirements(inf: Influencer, service: Service, resource: string) 
     network:            NETWORK as "base" | "base-sepolia",
     maxAmountRequired:  usdcAtomics(inf.pricing[service]),
     resource,
-    description:        serviceDesc(inf.name, service),
+    description:        serviceDesc(inf.handle, service),
     mimeType:           "application/json",
     payTo:              inf.wallet,
     maxTimeoutSeconds:  300,
