@@ -195,12 +195,19 @@ function isVulgar(text: string): boolean {
   return BLOCKED_WORDS.some(w => l.includes(w));
 }
 
+function decodePaymentHeader(paymentHeader: string): object {
+  // x402.org facilitator expects paymentPayload (decoded object), not raw base64 string
+  try { return JSON.parse(Buffer.from(paymentHeader, "base64").toString("utf-8")); }
+  catch { return paymentHeader as any; } // fallback: pass as-is
+}
+
 async function verifyPayment(paymentHeader: string, requirements: object): Promise<{ isValid: boolean; reason?: string }> {
   try {
+    const paymentPayload = decodePaymentHeader(paymentHeader);
     const res = await fetch(`${FACILITATOR_URL}/verify`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ paymentHeader, paymentRequirements: requirements }),
+      body: JSON.stringify({ paymentPayload, paymentRequirements: requirements }),
     });
     const json = await res.json() as any;
     console.log(`[x402] facilitator verify response:`, JSON.stringify(json));
@@ -213,12 +220,14 @@ async function verifyPayment(paymentHeader: string, requirements: object): Promi
 
 async function settlePayment(paymentHeader: string, requirements: object): Promise<string | null> {
   try {
+    const paymentPayload = decodePaymentHeader(paymentHeader);
     const res = await fetch(`${FACILITATOR_URL}/settle`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ paymentHeader, paymentRequirements: requirements }),
+      body: JSON.stringify({ paymentPayload, paymentRequirements: requirements }),
     });
     const json = await res.json() as any;
+    console.log(`[x402] facilitator settle response:`, JSON.stringify(json));
     return json.txHash ?? json.transaction ?? null;
   } catch { return null; }
 }
