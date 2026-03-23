@@ -341,13 +341,6 @@ async function x402Handler(c: any, handle: string, service: Service) {
   await notifyPayment(inf, service, body, txHash, result,
     session?.fanChatId, session?.botToken, session?.influencerChatId);
 
-  // If request comes from browser (paywall), redirect to success page
-  const accept = c.req.header("accept") ?? "";
-  if (accept.includes("text/html")) {
-    const successUrl = `${BASE_URL}/success/${handle}/${service}?ref=${ref ?? ""}&tx=${txHash ?? ""}`;
-    return c.redirect(successUrl, 302);
-  }
-
   return c.json({ success: true, service, handle, txHash, ...result });
 }
 
