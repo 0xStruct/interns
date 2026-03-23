@@ -285,22 +285,20 @@ async function x402Handler(c: any, handle: string, service: Service) {
     );
   }
 
-  // GET with payment header — unusual but allow for discovery tools
-  if (c.req.method === "GET") {
-    return c.json({ x402Version: 1, accepts: [requirements] }, 200);
-  }
-
-  // POST — verify then deliver (requirements.resource now matches what the wallet signed)
-  console.log(`[x402] POST /${handle}/${service} ref=${ref ?? "none"} session=${session ? "found" : "missing"}`);
+  // Payment header present — verify and deliver (handles both GET and POST from paywall)
+  const method = c.req.method;
+  console.log(`[x402] ${method} /${handle}/${service} ref=${ref ?? "none"} session=${session ? "found" : "missing"}`);
   console.log(`[x402] resource: ${requirements.resource}`);
-  console.log(`[x402] fanChatId=${session?.fanChatId} botToken=${session?.botToken ? "set" : "missing"} influencerChatId=${session?.influencerChatId}`);
+  console.log(`[x402] fanChatId=${session?.fanChatId ?? "none"} botToken=${session?.botToken ? "set" : "MISSING"} influencerChatId=${session?.influencerChatId ?? "none"}`);
 
   const valid = await verifyPayment(paymentHeader, requirements);
   console.log(`[x402] verify: ${valid}`);
   if (!valid) return c.json({ error: "Payment verification failed" }, 402);
 
-  const rawBody = await c.req.json().catch(() => ({})) as Record<string, string>;
-  const body    = { ...(session?.payload ?? {}), ...rawBody };
+  const rawBody = method === "POST"
+    ? await c.req.json().catch(() => ({})) as Record<string, string>
+    : {};
+  const body = { ...(session?.payload ?? {}), ...rawBody };
 
   const textToCheck = body.message ?? body.text ?? "";
   if (isVulgar(textToCheck)) return c.json({ error: "Content contains inappropriate material" }, 400);
