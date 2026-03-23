@@ -24,12 +24,14 @@ const CDP_CLIENT_KEY = process.env.CDP_CLIENT_KEY ?? "";
 const NETWORK = process.env.X402_NETWORK === "base" ? "base" : "base-sepolia";
 const FACILITATOR_URL = process.env.X402_FACILITATOR_URL ?? "https://x402.org/facilitator";
 
-// USDC contract addresses
-const USDC: Record<string, string> = {
-  "base":         "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-  "base-sepolia": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+// USDC config per network (address + EIP-712 domain name/version)
+const USDC_CONFIG: Record<string, { address: string; name: string; version: string }> = {
+  "base":         { address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", name: "USD Coin", version: "2" },
+  "base-sepolia": { address: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", name: "USDC",     version: "2" },
 };
-const USDC_ADDRESS = USDC[NETWORK];
+const USDC_ADDRESS = USDC_CONFIG[NETWORK].address;
+const USDC_NAME    = USDC_CONFIG[NETWORK].name;
+const USDC_VERSION = USDC_CONFIG[NETWORK].version;
 
 // Pending Telegram fan payment sessions  { ref → session }
 const sessions = new Map<string, {
@@ -141,7 +143,8 @@ function buildRequirements(inf: Influencer, service: Service) {
     payTo:              inf.wallet,
     maxTimeoutSeconds:  300,
     asset:              USDC_ADDRESS,
-    extra: { platform: "interns.bot", handle: inf.handle, service },
+    // extra.name + extra.version required by x402.org facilitator for EIP-712 domain verification
+    extra: { name: USDC_NAME, version: USDC_VERSION, platform: "interns.bot", handle: inf.handle, service },
   };
 }
 
