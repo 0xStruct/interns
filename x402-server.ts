@@ -250,7 +250,13 @@ async function x402Handler(c: any, handle: string, service: Service) {
   if (!inf) return c.json({ error: `Intern bot '${handle}' not found` }, 404);
   if (!inf.wallet) return c.json({ error: "Intern bot wallet not configured" }, 503);
 
+  // Extract ref FIRST — must be included in requirements.resource to match what the wallet signed
+  const ref     = new URL(c.req.url, BASE_URL).searchParams.get("ref") ?? undefined;
+  const session = ref ? sessions.get(ref) : undefined;
+
   const requirements = buildRequirements(inf, service);
+  if (ref) requirements.resource = `${requirements.resource}?ref=${ref}`;
+
   const paymentHeader = c.req.header("X-PAYMENT") ?? c.req.header("x-payment");
 
   // No payment header — return 402 with requirements (works for both GET and POST)
@@ -267,13 +273,9 @@ async function x402Handler(c: any, handle: string, service: Service) {
     return c.json({ x402Version: 1, accepts: [requirements] }, 200);
   }
 
-  // POST — verify then deliver
+  // POST — verify then deliver (requirements.resource now matches what the wallet signed)
   const valid = await verifyPayment(paymentHeader, requirements);
   if (!valid) return c.json({ error: "Payment verification failed" }, 402);
-
-  // Merge body with session payload if ref is present
-  const ref     = new URL(c.req.url, BASE_URL).searchParams.get("ref") ?? undefined;
-  const session = ref ? sessions.get(ref) : undefined;
   const rawBody = await c.req.json().catch(() => ({})) as Record<string, string>;
   const body    = { ...(session?.payload ?? {}), ...rawBody };
 
