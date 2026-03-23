@@ -190,8 +190,12 @@ async function verifyPayment(paymentHeader: string, requirements: object): Promi
       body: JSON.stringify({ paymentHeader, paymentRequirements: requirements }),
     });
     const json = await res.json() as any;
+    console.log(`[x402] facilitator verify response:`, JSON.stringify(json));
     return json.isValid === true;
-  } catch { return false; }
+  } catch (e) {
+    console.log(`[x402] facilitator verify error:`, e);
+    return false;
+  }
 }
 
 async function settlePayment(paymentHeader: string, requirements: object): Promise<string | null> {
@@ -274,8 +278,14 @@ async function x402Handler(c: any, handle: string, service: Service) {
   }
 
   // POST — verify then deliver (requirements.resource now matches what the wallet signed)
+  console.log(`[x402] POST /${handle}/${service} ref=${ref ?? "none"} session=${session ? "found" : "missing"}`);
+  console.log(`[x402] resource: ${requirements.resource}`);
+  console.log(`[x402] fanChatId=${session?.fanChatId} botToken=${session?.botToken ? "set" : "missing"} influencerChatId=${session?.influencerChatId}`);
+
   const valid = await verifyPayment(paymentHeader, requirements);
+  console.log(`[x402] verify: ${valid}`);
   if (!valid) return c.json({ error: "Payment verification failed" }, 402);
+
   const rawBody = await c.req.json().catch(() => ({})) as Record<string, string>;
   const body    = { ...(session?.payload ?? {}), ...rawBody };
 
