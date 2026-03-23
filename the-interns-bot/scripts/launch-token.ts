@@ -80,7 +80,7 @@ try {
   execSync(`bun run "${scriptDir}/update-setting.ts" --agent-id "${agentId}" --file data --field token_address --value "${contractAddress}"`, { timeout: 10000 });
   execSync(`bun run "${scriptDir}/update-setting.ts" --agent-id "${agentId}" --file data --field token_launched --value "true"`, { timeout: 10000 });
 
-  console.log(JSON.stringify({ ok: true, contractAddress, txHash, name, feeHandle }));
+  console.log(JSON.stringify({ ok: true, contractAddress, txHash, name, feeHandle: `@${feeHandle} (X handle)` }));
 
 } catch (err: any) {
   console.log(JSON.stringify({ ok: false, error: err.message ?? String(err) }));

@@ -121,12 +121,11 @@ Save: `--step waiting_bankr_wallet --data '{"influencer_chat_id":"{answer}"}'`
 ### Step: waiting_bankr_wallet
 Say:
 ```
-Payments from fans will go to your bankr.bot wallet on Base blockchain.
+Fan payments (DMs, shoutouts, meetings) go to your Bankr wallet on Base.
 
-If you already have one, paste your wallet address (starts with 0x).
-If you need a new one, go to https://bankr.bot and create a free account — it takes 30 seconds.
+Your Bankr wallet is tied to your X handle — sign in at https://bankr.bot with X to see your wallet address and manage earnings. It's free and takes 30 seconds.
 
-Paste your wallet address or type **new** (I'll remind you to add it later).
+Paste your wallet address (starts with 0x) here, or type skip to add it later.
 ```
 Save: `--step waiting_token_address --data '{"bankr_wallet":"{answer}"}'`
 
@@ -247,9 +246,9 @@ Say: "Your bot is live again."
   - If `true`: Say "You already have a token at {token_address}. Each influencer can only launch one token. Use /buyback to buy more of it."
   - If `false`:
     1. Ask "What should your token be called? (e.g. JohnToken)"
-    2. Confirm with the influencer: "I'll deploy a token called {name} on Base. Trading fees (57%) will flow to your X handle @{handle}. Ready to launch?"
+    2. Confirm with the influencer: "I'll deploy a token called {name} on Base. 57% of all trading fees will go to your Bankr wallet linked to @{handle} on X. To check your wallet and earnings, visit https://bankr.bot and sign in with X. Ready to launch?"
     3. After confirmation, run:
-       `launch-token.ts --agent-id {agentId} --name "{name}" --handle {handle}`
+       `launch-token.ts --agent-id {agentId} --name "{name}"`
     4. Parse the JSON result:
        - If `ok: true`: Say "Token launched! Contract: {contractAddress}. Fans can now buy and trade it on Base via bankr.bot."
        - If `ok: false`: Say "Launch failed: {error}. Please try again or contact support."
