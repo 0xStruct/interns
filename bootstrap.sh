@@ -371,7 +371,7 @@ Type=simple
 WorkingDirectory=${INTERNS_DIR}
 EnvironmentFile=${INTERNS_DIR}/.env
 Environment=PATH=${HOME}/.bun/bin:/usr/local/bin:/usr/bin:/bin
-ExecStart=${HOME}/.bun/bin/bun run ${INTERNS_DIR}/x402-server.ts
+ExecStart=${HOME}/.bun/bin/bun run ${INTERNS_DIR}/the-interns-bot/scripts/x402-server.ts
 Restart=on-failure
 RestartSec=5
 
