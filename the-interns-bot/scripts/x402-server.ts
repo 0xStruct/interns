@@ -39,6 +39,10 @@ const sessions = new Map<string, {
   paid: boolean;
   txHash?: string;
   createdAt: number;
+  // Telegram context for post-payment notifications
+  fanChatId?: string;
+  botToken?: string;
+  influencerChatId?: string;
 }>();
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -52,6 +56,8 @@ interface Influencer {
   wallet: string;
   pricing: Record<Service, number>;
   calLink: string;
+  botToken: string;
+  influencerChatId: string;
 }
 
 function readInfluencer(handle: string): Influencer | null {
@@ -80,9 +86,11 @@ function readInfluencer(handle: string): Influencer | null {
   const meetingPrice  = parseFloat(priceMatches[1]?.[1] ?? "50");
   const shoutoutPrice = parseFloat(priceMatches[2]?.[1] ?? "20");
 
-  // DATA.md: bankr_wallet and booking_link
-  const wallet  = get(data, "- bankr_wallet") || get(data, "bankr_wallet");
-  const calLink = get(data, "- booking_link") || get(data, "booking_link");
+  // DATA.md: bankr_wallet, booking_link, bot_token, influencer_chat_id
+  const wallet           = get(data, "- bankr_wallet")        || get(data, "bankr_wallet");
+  const calLink          = get(data, "- booking_link")        || get(data, "booking_link");
+  const botToken         = get(data, "- bot_token")           || get(data, "bot_token");
+  const influencerChatId = get(data, "- influencer_chat_id")  || get(data, "influencer_chat_id");
 
   return {
     handle,
@@ -90,6 +98,8 @@ function readInfluencer(handle: string): Influencer | null {
     name,
     wallet,
     calLink,
+    botToken,
+    influencerChatId,
     pricing: {
       dm:       dmPrice,
       shoutout: shoutoutPrice,
@@ -133,6 +143,37 @@ function buildRequirements(inf: Influencer, service: Service) {
     asset:              USDC_ADDRESS,
     extra: { platform: "interns.bot", handle: inf.handle, service },
   };
+}
+
+// ── Telegram notifications ────────────────────────────────────────────────────
+
+async function tgSend(botToken: string, chatId: string, text: string) {
+  if (!botToken || !chatId) return;
+  try {
+    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML" }),
+    });
+  } catch { /* best-effort */ }
+}
+
+async function notifyPayment(inf: Influencer, service: Service, payload: Record<string, string>, txHash: string | null, extra: Record<string, any>, fanChatId?: string, botToken?: string, influencerChatId?: string) {
+  const token  = botToken         || inf.botToken;
+  const infCid = influencerChatId || inf.influencerChatId;
+  const tx     = txHash ? `\nTx: <code>${txHash}</code>` : "";
+
+  if (service === "dm") {
+    if (fanChatId)  await tgSend(token, fanChatId,  `Payment confirmed! Your message has been delivered to ${inf.name}.${tx}`);
+    if (infCid)     await tgSend(token, infCid,     `New paid DM from fan:\n\n${payload.message ?? ""}${tx}`);
+  } else if (service === "shoutout") {
+    if (fanChatId)  await tgSend(token, fanChatId,  `Payment confirmed! Your shoutout request has been queued for ${inf.name} to approve.${tx}`);
+    if (infCid)     await tgSend(token, infCid,     `New paid shoutout request:\n\n${payload.text ?? ""}\n\nFrom: ${payload.from ?? "anonymous"}${tx}`);
+  } else if (service === "meeting") {
+    const link = extra.bookingUrl ? `\n\nYour one-time booking link:\n${extra.bookingUrl}` : "";
+    if (fanChatId)  await tgSend(token, fanChatId,  `Payment confirmed! Book your meeting with ${inf.name}.${link}${tx}`);
+    if (infCid)     await tgSend(token, infCid,     `New paid meeting booking from ${payload.from ?? "a fan"}.${tx}`);
+  }
 }
 
 const BLOCKED_WORDS = ["fuck","shit","bitch","cunt","dick","cock","pussy","nigger","faggot","asshole"];
@@ -230,12 +271,27 @@ async function x402Handler(c: any, handle: string, service: Service) {
   const valid = await verifyPayment(paymentHeader, requirements);
   if (!valid) return c.json({ error: "Payment verification failed" }, 402);
 
-  const body = await c.req.json().catch(() => ({})) as Record<string, string>;
+  // Merge body with session payload if ref is present
+  const ref     = new URL(c.req.url, BASE_URL).searchParams.get("ref") ?? undefined;
+  const session = ref ? sessions.get(ref) : undefined;
+  const rawBody = await c.req.json().catch(() => ({})) as Record<string, string>;
+  const body    = { ...(session?.payload ?? {}), ...rawBody };
+
   const textToCheck = body.message ?? body.text ?? "";
   if (isVulgar(textToCheck)) return c.json({ error: "Content contains inappropriate material" }, 400);
 
   const txHash = await settlePayment(paymentHeader, requirements);
   const result = deliverService(inf, service, body, txHash);
+
+  // Mark session paid
+  if (session && ref) {
+    session.paid   = true;
+    session.txHash = txHash ?? undefined;
+  }
+
+  // Notify fan + influencer via Telegram
+  await notifyPayment(inf, service, body, txHash, result,
+    session?.fanChatId, session?.botToken, session?.influencerChatId);
 
   return c.json({ success: true, service, handle, txHash, ...result });
 }
@@ -353,7 +409,11 @@ app.get("/pay/:handle/:service", (c) => {
   if (!inf) return c.text(`Intern bot '${handle}' not found`, 404);
   if (!inf.wallet) return c.text("Intern bot wallet not configured", 503);
 
+  // If ref is present, embed it in the resource URL so it comes back in the POST
+  const ref = c.req.query("ref");
   const requirements = buildRequirements(inf, service);
+  if (ref) requirements.resource = `${requirements.resource}?ref=${ref}`;
+
   const html = getPaywallHtml({
     amount:              inf.pricing[service],
     paymentRequirements: [requirements],
@@ -379,7 +439,13 @@ app.post("/sessions/:handle/:service", async (c) => {
   const body = await c.req.json().catch(() => ({})) as Record<string, string>;
   const ref  = crypto.randomBytes(4).toString("hex");
 
-  sessions.set(ref, { handle, service, payload: body, paid: false, createdAt: Date.now() });
+  // Extract Telegram context from body (not part of service payload)
+  const { fanChatId, botToken, influencerChatId, ...payload } = body;
+
+  sessions.set(ref, {
+    handle, service, payload, paid: false, createdAt: Date.now(),
+    fanChatId, botToken, influencerChatId,
+  });
   setTimeout(() => sessions.delete(ref), 30 * 60 * 1000); // expire after 30 min
 
   return c.json({

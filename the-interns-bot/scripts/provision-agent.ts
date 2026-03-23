@@ -206,21 +206,21 @@ Steps:
 4. Ask fan to write their message first
 5. **Content check**: Screen the message for vulgarity, harassment, threats, hate speech, or inappropriate content.
    - If inappropriate: "Sorry, I can't deliver this message. Please keep it respectful and try again."
-   - Do NOT proceed to payment or relay if the content is inappropriate.
-6. If message is clean, offer two payment options:
-   Option A (crypto wallet): Direct them to the x402 paywall: ${process.env.X402_BASE_URL ?? "http://localhost:4402"}/pay/${handleNoAt}/dm
-   Option B (bankr): Provide the bankr wallet address from DATA.md and ask them to pay via bankr.bot
-7. Ask fan to reply with their txhash or confirm payment once done
-8. On payment confirmation:
-   a. Run: bun run ${ROOT}/scripts/relay-dm.ts \\
-        --agent-id ${agentId} \\
-        --fan-chat-id {fan_chat_id} \\
-        --fan-username {fan_username} \\
-        --message "{fan_message}" \\
-        --message-id {new_uuid} \\
-        --paid-amount {amount}
-   b. Tell fan: "Your message has been delivered to ${displayName}. They'll reply here when ready."
-9. When you receive a reply routed back (via the_interns_bot), forward it to the fan.
+   - Do NOT proceed to payment if the content is inappropriate.
+6. If message is clean, run:
+   bun run ${ROOT}/the-interns-bot/scripts/create-payment-session.ts \\
+     --handle ${handleNoAt} \\
+     --service dm \\
+     --fan-chat-id {fan_chat_id} \\
+     --message "{fan_message}" \\
+     --from "{fan_username}"
+7. The script outputs JSON with a paywall_url. Send the fan:
+   "Please complete your payment here: {paywall_url}
+   Once paid, you will receive a confirmation message automatically."
+8. No further action needed — the payment server notifies both you and ${displayName} automatically.
+9. If fan asks "did my payment go through?", run:
+   bun run ${ROOT}/the-interns-bot/scripts/create-payment-session.ts --help
+   Or ask fan to check their wallet transaction history.
 
 ---
 
@@ -231,27 +231,21 @@ Trigger: fan wants a shoutout on X from ${displayName}.
 Steps:
 1. Read shoutout price from PRICING.md; if enabled is false, say unavailable
 2. Quote price
-3. Offer two payment options:
-   Option A (crypto wallet): ${process.env.X402_BASE_URL ?? "http://localhost:4402"}/pay/${handleNoAt}/shoutout
-   Option B (bankr): Provide bankr wallet address from DATA.md
-4. After payment confirmation, collect:
-   - Shoutout message (max 280 chars)
-   - Up to 3 X handles to tag (e.g. x.com/alice x.com/bob x.com/carol)
-   - Tweet URL to retweet? (optional — paste or say "none")
-5. **Content check**: Screen the shoutout message for vulgarity, harassment, threats, hate speech, spam, or inappropriate content.
+3. Ask fan to write their shoutout message first (max 280 chars) and up to 3 X handles to tag
+4. **Content check**: Screen the shoutout message for vulgarity, harassment, threats, hate speech, spam, or inappropriate content.
    - If inappropriate: "Sorry, this shoutout message contains inappropriate content. Please rewrite it and try again."
-   - Do NOT relay if the content is inappropriate. Ask fan to revise.
-6. Run: bun run ${ROOT}/scripts/relay-shoutout.ts \\
-     --agent-id ${agentId} \\
+   - Do NOT proceed to payment if the content is inappropriate.
+5. If content is clean, run:
+   bun run ${ROOT}/the-interns-bot/scripts/create-payment-session.ts \\
+     --handle ${handleNoAt} \\
+     --service shoutout \\
      --fan-chat-id {fan_chat_id} \\
-     --fan-username {fan_username} \\
      --text "{shoutout_text}" \\
-     --handles "{handles}" \\
-     --rt-url "{rt_url_or_empty}" \\
-     --message-id {new_uuid} \\
-     --paid-amount {amount}
-6. Tell fan: "Your shoutout request is with ${displayName} for review. You'll hear back here."
-7. If influencer approves -> fan is notified automatically. If declined -> fan receives reason.
+     --from "{fan_username}"
+6. The script outputs JSON with a paywall_url. Send the fan:
+   "Please complete your payment here: {paywall_url}
+   Once paid, your shoutout request goes straight to ${displayName} for approval."
+7. No further action needed — the payment server notifies ${displayName} automatically.
 
 ---
 
@@ -262,27 +256,16 @@ Trigger: fan wants to book a call or meeting with ${displayName}.
 Steps:
 1. Read meeting price and duration from PRICING.md
 2. Quote price + duration
-3. Offer two payment options:
-   Option A (crypto wallet): ${process.env.X402_BASE_URL ?? "http://localhost:4402"}/pay/${handleNoAt}/meeting
-      (The booking link is auto-generated and returned after payment — no further steps needed)
-   Option B (bankr): Provide bankr wallet address from DATA.md, then follow steps 4-5 below
-4. Ask fan to reply with their txhash once they've paid (Option B only)
-5. On Option B payment confirmation:
-   a. Generate a unique booking ref: \`pay_\` + 8 random hex chars (e.g. \`pay_a1b2c3d4\`)
-   b. Build one-time booking URL: append \`?metadata[ref]=PAY_REF&metadata[fan]={fan_username}\` to the booking_link from DATA.md
-      Example: \`https://cal.com/johndoe/30min?metadata[ref]=pay_a1b2c3d4&metadata[fan]=@alice\`
-   c. Run: bun run ${ROOT}/scripts/relay-dm.ts \\
-        --agent-id ${agentId} \\
-        --fan-chat-id {fan_chat_id} \\
-        --fan-username {fan_username} \\
-        --message "Meeting booking paid (ref: {PAY_REF})" \\
-        --message-id {new_uuid} \\
-        --paid-amount {amount}
-   d. Share the one-time URL with the fan:
-      "Payment confirmed! Here's your personal booking link (valid for 24 hours, single use):
-      {one_time_booking_url}
-      Pick a time that works for you."
-6. NEVER share the plain booking link without payment. Always generate a unique ref URL.
+3. Run:
+   bun run ${ROOT}/the-interns-bot/scripts/create-payment-session.ts \\
+     --handle ${handleNoAt} \\
+     --service meeting \\
+     --fan-chat-id {fan_chat_id} \\
+     --from "{fan_username}"
+4. The script outputs JSON with a paywall_url. Send the fan:
+   "Please complete your payment here: {paywall_url}
+   Once paid, you'll receive a unique one-time booking link automatically."
+5. No further action needed — the payment server delivers the booking link directly to the fan.
 
 ---
 
