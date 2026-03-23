@@ -195,7 +195,7 @@ function isVulgar(text: string): boolean {
   return BLOCKED_WORDS.some(w => l.includes(w));
 }
 
-async function verifyPayment(paymentHeader: string, requirements: object): Promise<boolean> {
+async function verifyPayment(paymentHeader: string, requirements: object): Promise<{ isValid: boolean; reason?: string }> {
   try {
     const res = await fetch(`${FACILITATOR_URL}/verify`, {
       method: "POST",
@@ -204,10 +204,10 @@ async function verifyPayment(paymentHeader: string, requirements: object): Promi
     });
     const json = await res.json() as any;
     console.log(`[x402] facilitator verify response:`, JSON.stringify(json));
-    return json.isValid === true;
-  } catch (e) {
+    return { isValid: json.isValid === true, reason: json.invalidReason ?? json.error };
+  } catch (e: any) {
     console.log(`[x402] facilitator verify error:`, e);
-    return false;
+    return { isValid: false, reason: e.message };
   }
 }
 
@@ -288,12 +288,25 @@ async function x402Handler(c: any, handle: string, service: Service) {
   // Payment header present — verify and deliver (handles both GET and POST from paywall)
   const method = c.req.method;
   console.log(`[x402] ${method} /${handle}/${service} ref=${ref ?? "none"} session=${session ? "found" : "missing"}`);
-  console.log(`[x402] resource: ${requirements.resource}`);
+  console.log(`[x402] requirements.resource:        ${requirements.resource}`);
+  console.log(`[x402] requirements.payTo:           ${(requirements as any).payTo}`);
+  console.log(`[x402] requirements.maxAmountRequired: ${(requirements as any).maxAmountRequired}`);
+  console.log(`[x402] requirements.network:         ${(requirements as any).network}`);
+  // Decode payment header to see what wallet actually signed
+  try {
+    const decoded = JSON.parse(Buffer.from(paymentHeader, "base64").toString("utf-8"));
+    const auth = decoded?.payload?.authorization ?? decoded?.authorization ?? {};
+    console.log(`[x402] payment.to:      ${auth.to ?? decoded?.payload?.to ?? "?"}`);
+    console.log(`[x402] payment.value:   ${auth.value ?? decoded?.payload?.value ?? "?"}`);
+    console.log(`[x402] payment.network: ${decoded?.network ?? "?"}`);
+  } catch { /* header may not be base64 JSON */ }
   console.log(`[x402] fanChatId=${session?.fanChatId ?? "none"} botToken=${session?.botToken ? "set" : "MISSING"} influencerChatId=${session?.influencerChatId ?? "none"}`);
 
-  const valid = await verifyPayment(paymentHeader, requirements);
-  console.log(`[x402] verify: ${valid}`);
-  if (!valid) return c.json({ error: "Payment verification failed" }, 402);
+  const { isValid, reason } = await verifyPayment(paymentHeader, requirements);
+  console.log(`[x402] verify: ${isValid} reason: ${reason ?? "none"}`);
+  if (!isValid) {
+    return c.json({ x402Version: 1, error: reason ?? "Payment verification failed", accepts: [requirements] }, 402);
+  }
 
   const rawBody = method === "POST"
     ? await c.req.json().catch(() => ({})) as Record<string, string>
