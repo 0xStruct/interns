@@ -23,6 +23,9 @@
     "enrich-persona": "bun run scripts/enrich-persona.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.39.0"
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@hono/node-server": "^1.19.11",
+    "hono": "^4.12.8",
+    "x402": "^1.1.0"
   }
 }
