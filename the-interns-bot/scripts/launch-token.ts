@@ -5,7 +5,7 @@
  * Called by the management bot after the influencer confirms the token name.
  *
  * Usage:
- *   bun run launch-token.ts --agent-id steve55-intern --name "SteveToken" --handle steve55
+ *   bun run launch-token.ts --agent-id steve55-intern --name "SteveToken" [--symbol "STEVE"]
  *
  * Outputs JSON:
  *   { ok: true,  contractAddress: "0x...", txHash: "0x...", name: "SteveToken" }
@@ -13,6 +13,7 @@
  */
 
 import { execSync } from "child_process";
+import { readFileSync, existsSync } from "fs";
 import { resolve } from "path";
 
 const args = process.argv.slice(2);
@@ -23,15 +24,29 @@ const get = (flag: string) => {
 
 const agentId = get("--agent-id");
 const name    = get("--name");
-const handle  = get("--handle");  // X/Twitter handle for fee routing
+const symbol  = get("--symbol") ?? "";
 
 if (!agentId || !name) {
   console.log(JSON.stringify({ ok: false, error: "Missing --agent-id or --name" }));
   process.exit(1);
 }
 
-// Derive handle from agentId if not provided (strip "-intern" suffix)
-const feeHandle = handle ?? agentId.replace(/-intern$/, "");
+// Read X handle from DATA.md (stored as "- handle: @steve55" during onboarding)
+const INTERNS_DIR = resolve(import.meta.dir, "../..");
+const dataPath = `${INTERNS_DIR}/influencers/${agentId}/DATA.md`;
+let xHandle = agentId.replace(/-intern$/, "");  // fallback: agentId without -intern
+if (existsSync(dataPath)) {
+  const data = readFileSync(dataPath, "utf-8");
+  const m = data.match(/[-\s]*handle[:\s]+@?(\S+)/i);
+  if (m) xHandle = m[1].replace(/^@/, "");
+}
+
+// Derive fee recipient: X handle (no @ prefix for bankr --fee-type x)
+const feeHandle = xHandle;
+// Profile image via unavatar (returns X profile picture)
+const imageUrl = `https://unavatar.io/twitter/${xHandle}`;
+// Tweet links to the creator's X profile
+const tweetUrl = `https://x.com/${xHandle}`;
 
 try {
   // 1. Verify bankr CLI is installed and wallet exists
@@ -52,7 +67,7 @@ try {
   // Pass all optional args explicitly to avoid interactive TTY prompts.
   // --fee-type x routes 57% of trading fees to the creator's X handle via bankr.
   // -y skips the final confirmation prompt.
-  const cmd = `bankr launch --name "${name}" --symbol "" --image "" --tweet "" --website "https://interns.bot" --fee "${feeHandle}" --fee-type x -y`;
+  const cmd = `bankr launch --name "${name}" --symbol "${symbol}" --image "${imageUrl}" --tweet "${tweetUrl}" --website "https://interns.bot" --fee "${feeHandle}" --fee-type x -y`;
 
   if (process.env.DEBUG) console.error(`[launch-token] running: ${cmd}`);
 

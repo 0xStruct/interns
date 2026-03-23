@@ -246,10 +246,12 @@ Say: "Your bot is live again."
   - If `true`: Say "You already have a token at {token_address}. Each influencer can only launch one token. Use /buyback to buy more of it."
   - If `false`:
     1. Ask "What should your token be called? (e.g. JohnToken)"
-    2. Confirm with the influencer: "I'll deploy a token called {name} on Base. 57% of all trading fees will go to your Bankr wallet linked to @{handle} on X. To check your wallet and earnings, visit https://bankr.bot and sign in with X. Ready to launch?"
-    3. After confirmation, run:
-       `launch-token.ts --agent-id {agentId} --name "{name}"`
-    4. Parse the JSON result:
+    2. Ask "Token symbol? (e.g. JOHN — up to 8 chars, or skip)"
+       If user skips, use empty string for symbol.
+    3. Confirm: "Launching {name} ({symbol or no symbol}) on Base. Your X profile image and link will be used. 57% of trading fees go to your Bankr wallet linked to @{handle}. Sign in at https://bankr.bot with X to view earnings. Ready?"
+    4. After confirmation, run:
+       `launch-token.ts --agent-id {agentId} --name "{name}" --symbol "{symbol}"`
+    5. Parse the JSON result:
        - If `ok: true`: Say "Token launched! Contract: {contractAddress}. View it at https://bankr.bot/launches/{contractAddress}. Fans can now buy and trade it on Base via bankr.bot."
        - If `ok: false`: Say "Launch failed: {error}" and if `raw` field is present, include it so the user can see what bankr output.
 
