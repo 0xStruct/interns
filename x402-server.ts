@@ -21,6 +21,7 @@ const PORT = parseInt(process.env.X402_PORT ?? "4402");
 const INTERNS_DIR = process.env.INTERNS_DIR ?? "/opt/interns";
 const BASE_URL = (process.env.X402_BASE_URL ?? `http://localhost:${PORT}`).replace(/\/$/, "");
 const CDP_CLIENT_KEY = process.env.CDP_CLIENT_KEY ?? "";
+const MAIN_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN ?? "";  // @the_interns_bot token for influencer notifications
 const NETWORK = process.env.X402_NETWORK === "base" ? "base" : "base-sepolia";
 const FACILITATOR_URL = process.env.X402_FACILITATOR_URL ?? "https://x402.org/facilitator";
 
@@ -175,20 +176,21 @@ async function tgSend(botToken: string, chatId: string, text: string) {
 }
 
 async function notifyPayment(inf: Influencer, service: Service, payload: Record<string, string>, txHash: string | null, extra: Record<string, any>, fanChatId?: string, botToken?: string, influencerChatId?: string) {
-  const token  = botToken         || inf.botToken;
-  const infCid = influencerChatId || inf.influencerChatId;
-  const tx     = txHash ? `\nTx: <code>${txHash}</code>` : "";
+  const fanToken = botToken         || inf.botToken;      // fan-facing intern bot
+  const infToken = MAIN_BOT_TOKEN   || fanToken;          // @the_interns_bot for influencer
+  const infCid   = influencerChatId || inf.influencerChatId;
+  const tx       = txHash ? `\nTx: <code>${txHash}</code>` : "";
 
   if (service === "dm") {
-    if (fanChatId)  await tgSend(token, fanChatId,  `Payment confirmed! Your message has been delivered to ${inf.name}.${tx}`);
-    if (infCid)     await tgSend(token, infCid,     `New paid DM from fan:\n\n${payload.message ?? ""}${tx}`);
+    if (fanChatId)  await tgSend(fanToken, fanChatId, `Payment confirmed! Your message has been delivered to ${inf.name}.${tx}`);
+    if (infCid)     await tgSend(infToken,  infCid,   `New paid DM from fan:\n\n${payload.message ?? ""}${tx}`);
   } else if (service === "shoutout") {
-    if (fanChatId)  await tgSend(token, fanChatId,  `Payment confirmed! Your shoutout request has been queued for ${inf.name} to approve.${tx}`);
-    if (infCid)     await tgSend(token, infCid,     `New paid shoutout request:\n\n${payload.text ?? ""}\n\nFrom: ${payload.from ?? "anonymous"}${tx}`);
+    if (fanChatId)  await tgSend(fanToken, fanChatId, `Payment confirmed! Your shoutout request has been queued for ${inf.name} to approve.${tx}`);
+    if (infCid)     await tgSend(infToken,  infCid,   `New paid shoutout request:\n\n${payload.text ?? ""}\n\nFrom: ${payload.from ?? "anonymous"}${tx}`);
   } else if (service === "meeting") {
     const link = extra.bookingUrl ? `\n\nYour one-time booking link:\n${extra.bookingUrl}` : "";
-    if (fanChatId)  await tgSend(token, fanChatId,  `Payment confirmed! Book your meeting with ${inf.name}.${link}${tx}`);
-    if (infCid)     await tgSend(token, infCid,     `New paid meeting booking from ${payload.from ?? "a fan"}.${tx}`);
+    if (fanChatId)  await tgSend(fanToken, fanChatId, `Payment confirmed! Book your meeting with ${inf.name}.${link}${tx}`);
+    if (infCid)     await tgSend(infToken,  infCid,   `New paid meeting booking from ${payload.from ?? "a fan"}.${tx}`);
   }
 }
 
