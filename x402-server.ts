@@ -102,11 +102,11 @@ function usdcAtomics(usd: number): string {
   return Math.round(usd * 1_000_000).toString(); // USDC has 6 decimals
 }
 
-function serviceDesc(name: string, service: Service): string {
+function serviceDesc(handle: string, service: Service): string {
   return {
-    dm:       `Send a private message to ${name}`,
-    shoutout: `Request an X shoutout from ${name}`,
-    meeting:  `Book a 1-on-1 meeting with ${name}`,
+    dm:       `Send a private message to @${handle}`,
+    shoutout: `Request an X shoutout from @${handle}`,
+    meeting:  `Book a 1-on-1 meeting with @${handle}`,
   }[service];
 }
 
