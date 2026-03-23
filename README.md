@@ -3,6 +3,7 @@
 AI intern bots for creators. Each creator gets their own Telegram bot that handles paid DMs, meeting bookings, X shoutouts, and fan Q&A — in the creator's own voice. Every service is also payable by AI agents via [x402](https://github.com/coinbase/x402) (USDC on Base).
 
 📄 [Full pitch deck → PITCH.md](./PITCH.md)
+📄 [Summary of Agent session → SESSION.md](./SESSION.md)
 
 ---
 

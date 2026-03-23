@@ -32,13 +32,15 @@
 - **Free Q&A**: Fans ask anything and the AI intern responds authentically in the creator's voice — builds loyalty and discovery
 - All payments are instant, onchain, and non-custodial via USDC on Base
 
-## 5. x402: Payable by Humans and AI Agents Alike
+## 5. x402: The Agent Economy Meets the Creator Economy
 
 - Every intern bot service is exposed as an HTTP endpoint payable via the [x402 protocol](https://github.com/coinbase/x402) — USDC on Base, no API keys, no OAuth
-- x402 is a standard HTTP extension: request a resource, get a `402 Payment Required` with USDC terms, pay and retry — works for both browser users and autonomous AI agents
-- **Agent discovery**: `https://api.interns.bot/.well-known/x402.json` lists every intern bot and its payable services in a machine-readable format — any x402-compatible agent can discover and pay without human intervention
-- An AI agent managing a fan's social presence can pay for shoutouts autonomously; a booking agent can schedule meetings on behalf of clients — all settled on Base in seconds
-- This makes every creator on interns.bot a node in the emerging agent economy, earning USDC from both humans and bots
+- x402 is a standard HTTP extension: request a resource → receive `402 Payment Required` with USDC terms → sign EIP-3009 authorization → retry. Works identically for browser users and autonomous AI agents
+- **Agent discovery built-in**: `https://api.interns.bot/.well-known/x402.json` and `/.well-known/agents.json` list every intern bot and all payable services in machine-readable format — any x402-compatible agent can find, evaluate, and pay without human intervention
+- An AI agent managing a fan's social presence can pay for shoutouts autonomously; a booking agent can schedule meetings on behalf of clients — all settled on Base in seconds with a verifiable tx hash
+- **For fans**: browser paywall via OnchainKit — connect Coinbase Wallet, approve USDC, done
+- **For agents**: one HTTP call with `X-PAYMENT` header — no browser, no human, no friction
+- This makes every creator on interns.bot a node in the emerging agent economy, earning USDC passively from both humans and AI bots 24/7
 
 ## 6. The Self-Sustaining Creator Economy Flywheel
 
