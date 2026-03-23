@@ -245,10 +245,14 @@ Say: "Your bot is live again."
 ### /launchtoken
 - Read DATA.md `token_launched` field:
   - If `true`: Say "You already have a token at {token_address}. Each influencer can only launch one token. Use /buyback to buy more of it."
-  - If `false`: Ask "What should your token be called? (e.g. JohnToken)"
-    Then use bankr skill: `"deploy a token called {name} on Base"`
-    After success: `update-setting.ts --agent-id {agentId} --file data --field token_address --value {contract_address}`
-    Say: "Token launched! Contract: {address}. Fans can now buy and trade it on Base."
+  - If `false`:
+    1. Ask "What should your token be called? (e.g. JohnToken)"
+    2. Confirm with the influencer: "I'll deploy a token called {name} on Base. Trading fees (57%) will flow to your X handle @{handle}. Ready to launch?"
+    3. After confirmation, run:
+       `launch-token.ts --agent-id {agentId} --name "{name}" --handle {handle}`
+    4. Parse the JSON result:
+       - If `ok: true`: Say "Token launched! Contract: {contractAddress}. Fans can now buy and trade it on Base via bankr.bot."
+       - If `ok: false`: Say "Launch failed: {error}. Please try again or contact support."
 
 ---
 

@@ -84,6 +84,14 @@ else
   ok "OpenClaw already installed"
 fi
 
+if ! command -v bankr &>/dev/null; then
+  log "Installing Bankr CLI..."
+  npm install -g @bankr/cli
+  ok "Bankr CLI installed"
+else
+  ok "Bankr CLI already installed"
+fi
+
 # ---------------------------------------------------------
 # 6. Configure OpenClaw
 #
