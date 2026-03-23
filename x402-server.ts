@@ -148,14 +148,27 @@ function buildRequirements(inf: Influencer, service: Service) {
 // ── Telegram notifications ────────────────────────────────────────────────────
 
 async function tgSend(botToken: string, chatId: string, text: string) {
-  if (!botToken || !chatId) return;
+  if (!botToken || !chatId) {
+    console.log(`[tg] skipping send — botToken=${botToken ? "set" : "MISSING"} chatId=${chatId || "MISSING"}`);
+    return;
+  }
   try {
-    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+    const tokenPrefix = botToken.slice(0, 8) + "...";
+    console.log(`[tg] sendMessage → chatId=${chatId} token=${tokenPrefix}`);
+    const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML" }),
     });
-  } catch { /* best-effort */ }
+    const json = await res.json() as any;
+    if (!json.ok) {
+      console.log(`[tg] sendMessage error: ${json.description} (code ${json.error_code})`);
+    } else {
+      console.log(`[tg] sendMessage ok → msgId=${json.result?.message_id}`);
+    }
+  } catch (e: any) {
+    console.log(`[tg] sendMessage exception: ${e.message}`);
+  }
 }
 
 async function notifyPayment(inf: Influencer, service: Service, payload: Record<string, string>, txHash: string | null, extra: Record<string, any>, fanChatId?: string, botToken?: string, influencerChatId?: string) {
@@ -305,6 +318,13 @@ async function x402Handler(c: any, handle: string, service: Service) {
   await notifyPayment(inf, service, body, txHash, result,
     session?.fanChatId, session?.botToken, session?.influencerChatId);
 
+  // If request comes from browser (paywall), redirect to success page
+  const accept = c.req.header("accept") ?? "";
+  if (accept.includes("text/html")) {
+    const successUrl = `${BASE_URL}/success/${handle}/${service}?ref=${ref ?? ""}&tx=${txHash ?? ""}`;
+    return c.redirect(successUrl, 302);
+  }
+
   return c.json({ success: true, service, handle, txHash, ...result });
 }
 
@@ -434,6 +454,45 @@ app.get("/pay/:handle/:service", (c) => {
     cdpClientKey:        CDP_CLIENT_KEY,
     appName:             `interns.bot — ${inf.name}`,
   });
+  return c.html(html);
+});
+
+// ── Success page (after browser payment) ─────────────────────────────────────
+
+app.get("/success/:handle/:service", (c) => {
+  const handle  = c.req.param("handle");
+  const service = c.req.param("service") as Service;
+  const ref     = c.req.query("ref") ?? "";
+  const tx      = c.req.query("tx") ?? "";
+  const inf     = readInfluencer(handle);
+  const name    = inf?.name ?? handle;
+
+  const label = service === "dm"       ? "Your message has been delivered!"
+              : service === "shoutout" ? "Your shoutout request is on its way!"
+              : "Payment received — check Telegram for your booking link!";
+
+  const txLine = tx ? `<p style="color:#888;font-size:13px;word-break:break-all">Tx: ${tx}</p>` : "";
+  const tgLine = `<p>Head back to Telegram — you'll receive a confirmation message from <strong>${name}'s intern bot</strong>.</p>`;
+
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Payment Confirmed — interns.bot</title>
+<style>
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;margin:0;background:#0f0f0f;color:#fff;display:flex;align-items:center;justify-content:center;min-height:100vh;}
+  .card{background:#1a1a1a;border:1px solid #333;border-radius:16px;padding:40px;max-width:440px;text-align:center;}
+  .icon{font-size:56px;margin-bottom:16px;}
+  h1{margin:0 0 12px;font-size:22px;}
+  p{color:#aaa;line-height:1.6;margin:8px 0;}
+  .badge{display:inline-block;background:#1d9bf022;color:#1d9bf0;border:1px solid #1d9bf055;border-radius:8px;padding:6px 14px;font-size:13px;margin-top:16px;}
+</style></head><body>
+<div class="card">
+  <div class="icon">✅</div>
+  <h1>${label}</h1>
+  ${tgLine}
+  ${txLine}
+  <div class="badge">Powered by x402 · USDC on Base</div>
+</div>
+</body></html>`;
   return c.html(html);
 });
 
